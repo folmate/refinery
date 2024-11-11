@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
+import { useMediaQuery } from '@mui/system';
+import { clsx } from 'clsx';
 import * as d3 from 'd3';
 import { type Graphviz, graphviz } from 'd3-graphviz';
 import type { BaseType, Selection } from 'd3-selection';
@@ -31,12 +33,14 @@ function DotGraphVisualizer({
   transitionTime,
   animateThreshold,
   setSvgContainer,
+  simplify,
 }: {
   graph: GraphStore;
   fitZoom?: FitZoomCallback;
   transitionTime?: number;
   animateThreshold?: number;
   setSvgContainer?: (container: HTMLElement | undefined) => void;
+  simplify?: boolean;
 }): JSX.Element {
   const transitionTimeOrDefault = transitionTime ?? 250;
   const animateThresholdOrDefault = animateThreshold ?? 100;
@@ -45,6 +49,10 @@ function DotGraphVisualizer({
     Graphviz<BaseType, unknown, null, undefined> | undefined
   >();
   const [animate, setAnimate] = useState(true);
+  const [concretize, setConcretize] = useState(false);
+  const prefersReducedMotion = useMediaQuery(
+    '(prefers-reduced-motion: reduce)',
+  );
 
   const setElement = useCallback(
     (element: HTMLDivElement | null) => {
@@ -113,6 +121,7 @@ function DotGraphVisualizer({
           // `d3-graphviz` uses `<title>` elements for traceability,
           // so we only remove them after the rendering is finished.
           d3.select(element).selectAll('title').remove();
+          setConcretize(graph.concretize);
         });
         if (fitZoom !== undefined) {
           if (animate) {
@@ -130,7 +139,8 @@ function DotGraphVisualizer({
             const [source, size] = result;
             // Disable tweening for large graphs to improve performance.
             // See https://github.com/magjac/d3-graphviz/issues/232#issuecomment-1157555213
-            const newAnimate = size < animateThresholdOrDefault;
+            const newAnimate =
+              size < animateThresholdOrDefault && !prefersReducedMotion;
             if (animate === newAnimate) {
               renderer.renderDot(source);
             } else {
@@ -147,6 +157,7 @@ function DotGraphVisualizer({
       fitZoom,
       transitionTimeOrDefault,
       animateThresholdOrDefault,
+      prefersReducedMotion,
       animate,
       setSvgContainer,
     ],
@@ -154,9 +165,11 @@ function DotGraphVisualizer({
 
   return (
     <GraphTheme
+      className={clsx({ simplified: simplify, dimmed: graph.dimView })}
       ref={setElement}
       colorNodes={graph.colorNodes}
       hexTypeHashes={graph.hexTypeHashes}
+      concretize={concretize}
     />
   );
 }

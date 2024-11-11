@@ -7,30 +7,35 @@ package tools.refinery.store.reasoning.translator.crossreference;
 
 import tools.refinery.logic.term.truthvalue.TruthValue;
 import tools.refinery.store.reasoning.ReasoningAdapter;
-import tools.refinery.store.reasoning.refinement.ConcreteSymbolRefiner;
-import tools.refinery.store.reasoning.refinement.PartialInterpretationRefiner;
+import tools.refinery.store.reasoning.refinement.ConcreteRelationRefiner;
+import tools.refinery.store.reasoning.refinement.TypeConstraintRefiner;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.representation.PartialSymbol;
 import tools.refinery.store.reasoning.seed.ModelSeed;
+import tools.refinery.store.reasoning.translator.RoundingMode;
 import tools.refinery.store.representation.Symbol;
 import tools.refinery.store.tuple.Tuple;
 
 import java.util.Objects;
+import java.util.Set;
 
-class UndirectedCrossReferenceRefiner extends ConcreteSymbolRefiner<TruthValue, Boolean> {
+class UndirectedCrossReferenceRefiner extends ConcreteRelationRefiner {
 	private final PartialRelation sourceType;
-	private PartialInterpretationRefiner<TruthValue, Boolean> sourceRefiner;
+	private final Set<PartialRelation> supersets;
+	private TypeConstraintRefiner typeConstraintRefiner;
 
-	protected UndirectedCrossReferenceRefiner(ReasoningAdapter adapter,
-                                              PartialSymbol<TruthValue, Boolean> partialSymbol,
-											  Symbol<TruthValue> concreteSymbol, PartialRelation sourceType) {
-		super(adapter, partialSymbol, concreteSymbol);
-		this.sourceType = sourceType;
+	protected UndirectedCrossReferenceRefiner(
+			ReasoningAdapter adapter, PartialSymbol<TruthValue, Boolean> partialSymbol,
+			Symbol<TruthValue> concreteSymbol, UndirectedCrossReferenceInfo info, RoundingMode roundingMode) {
+		super(adapter, partialSymbol, concreteSymbol, roundingMode);
+		this.sourceType = info.type();
+		this.supersets = info.supersets();
 	}
 
 	@Override
 	public void afterCreate() {
-		sourceRefiner = getAdapter().getRefiner(sourceType);
+		var adapter = getAdapter();
+		typeConstraintRefiner = new TypeConstraintRefiner(adapter, sourceType, sourceType, supersets, supersets);
 	}
 
 	@Override
@@ -38,7 +43,7 @@ class UndirectedCrossReferenceRefiner extends ConcreteSymbolRefiner<TruthValue, 
 		int source = key.get(0);
 		int target = key.get(1);
 		var currentValue = get(key);
-		var mergedValue = currentValue.meet(value);
+		var mergedValue = concretizationAwareMeet(currentValue, value);
 		if (!Objects.equals(currentValue, mergedValue)) {
 			var oldValue = put(key, mergedValue);
 			if (source != target) {
@@ -49,8 +54,7 @@ class UndirectedCrossReferenceRefiner extends ConcreteSymbolRefiner<TruthValue, 
 			}
 		}
 		if (value.must()) {
-			return sourceRefiner.merge(Tuple.of(source), TruthValue.TRUE) &&
-					sourceRefiner.merge(Tuple.of(target), TruthValue.TRUE);
+			return typeConstraintRefiner.merge(key);
 		}
 		return true;
 	}
@@ -58,23 +62,12 @@ class UndirectedCrossReferenceRefiner extends ConcreteSymbolRefiner<TruthValue, 
 	@Override
 	public void afterInitialize(ModelSeed modelSeed) {
 		var linkType = getPartialSymbol();
-		var cursor = modelSeed.getCursor(linkType);
-		while (cursor.move()) {
-			var value = cursor.getValue();
-			if (value.must()) {
-				var key = cursor.getKey();
-				boolean merged = sourceRefiner.merge(Tuple.of(key.get(0)), TruthValue.TRUE) &&
-						sourceRefiner.merge(Tuple.of(key.get(1)), TruthValue.TRUE);
-				if (!merged) {
-					throw new IllegalArgumentException("Failed to merge end types of reference %s for key %s"
-							.formatted(linkType, key));
-				}
-			}
-		}
+		typeConstraintRefiner.mergeFromSeed(linkType, modelSeed);
 	}
 
-	public static Factory<TruthValue, Boolean> of(Symbol<TruthValue> concreteSymbol, PartialRelation sourceType) {
+	public static Factory<TruthValue, Boolean> of(Symbol<TruthValue> concreteSymbol, UndirectedCrossReferenceInfo info,
+												  RoundingMode roundingMode) {
 		return (adapter, partialSymbol) -> new UndirectedCrossReferenceRefiner(adapter, partialSymbol, concreteSymbol,
-				sourceType);
+				info, roundingMode);
 	}
 }

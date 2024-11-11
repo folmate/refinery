@@ -10,12 +10,12 @@ import tools.refinery.language.library.BuiltinLibrary;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.language.scoping.imports.ImportAdapterProvider;
 import tools.refinery.language.scoping.imports.ImportCollector;
+import tools.refinery.language.semantics.internal.MutableRelationCollector;
 import tools.refinery.language.semantics.internal.MutableSeed;
 import tools.refinery.language.semantics.internal.query.QueryCompiler;
 import tools.refinery.language.semantics.internal.query.RuleCompiler;
 import tools.refinery.language.utils.BuiltinSymbols;
 import tools.refinery.language.utils.ProblemUtil;
-import tools.refinery.language.validation.ActionTargetCollector;
 import tools.refinery.logic.dnf.InvalidClauseException;
 import tools.refinery.logic.term.cardinalityinterval.CardinalityInterval;
 import tools.refinery.logic.term.cardinalityinterval.CardinalityIntervals;
@@ -23,8 +23,10 @@ import tools.refinery.logic.term.truthvalue.TruthValue;
 import tools.refinery.logic.term.uppercardinality.UpperCardinalities;
 import tools.refinery.store.dse.propagation.PropagationBuilder;
 import tools.refinery.store.dse.transition.DesignSpaceExplorationBuilder;
+import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.model.ModelStoreBuilder;
 import tools.refinery.store.reasoning.ReasoningAdapter;
+import tools.refinery.store.reasoning.literal.ConcretenessSpecification;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.scope.ScopePropagator;
 import tools.refinery.store.reasoning.seed.ModelSeed;
@@ -47,6 +49,7 @@ import tools.refinery.store.tuple.Tuple;
 import tools.refinery.store.tuple.Tuple1;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ModelInitializer {
 	@Inject
@@ -62,7 +65,7 @@ public class ModelInitializer {
 	private ImportAdapterProvider importAdapterProvider;
 
 	@Inject
-	private ActionTargetCollector actionTargetCollector;
+	private MutableRelationCollector mutableRelationCollector;
 
 	@Inject
 	private QueryCompiler queryCompiler;
@@ -88,8 +91,6 @@ public class ModelInitializer {
 
 	private final Map<PartialRelation, RelationInfo> partialRelationInfoMap = new HashMap<>();
 
-	private final Set<PartialRelation> targetTypes = new HashSet<>();
-
 	private final MetamodelBuilder metamodelBuilder = Metamodel.builder();
 
 	private Metamodel metamodel;
@@ -113,6 +114,7 @@ public class ModelInitializer {
 		this.problem = problem;
 		loadImportedProblems();
 		importedProblems.add(problem);
+		mutableRelationCollector.collectMutableRelations(importedProblems);
 		problemTrace.setProblem(problem);
 		queryCompiler.setProblemTrace(problemTrace);
 		ruleCompiler.setQueryCompiler(queryCompiler);
@@ -301,6 +303,10 @@ public class ModelInitializer {
 		} else {
 			collectPartialRelation(predicateDefinition, arity, null, TruthValue.UNKNOWN);
 		}
+		var computedPredicate = predicateDefinition.getComputedValue();
+		if (computedPredicate != null) {
+			collectPartialRelation(computedPredicate, arity, null, TruthValue.UNKNOWN);
+		}
 	}
 
 	private void putRelationInfo(Relation relation, RelationInfo info) {
@@ -367,7 +373,6 @@ public class ModelInitializer {
 		var relation = getPartialRelation(referenceDeclaration);
 		var source = getPartialRelation(classDeclaration);
 		var target = getPartialRelation(referenceDeclaration.getReferenceType());
-		targetTypes.add(target);
 		boolean containment = referenceDeclaration.getKind() == ReferenceKind.CONTAINMENT;
 		boolean partial = referenceDeclaration.getKind() == ReferenceKind.PARTIAL;
 		var opposite = referenceDeclaration.getOpposite();
@@ -376,6 +381,9 @@ public class ModelInitializer {
 			oppositeRelation = getPartialRelation(opposite);
 		}
 		var multiplicity = getMultiplicityConstraint(referenceDeclaration);
+		Set<PartialRelation> supersets = referenceDeclaration.getSuperSets().stream()
+				.map(this::getPartialRelation)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
 		try {
 			var seed = relationInfoMap.get(referenceDeclaration).toSeed(nodeCount);
 			var defaultValue = seed.majorityValue();
@@ -391,6 +399,7 @@ public class ModelInitializer {
 					.opposite(oppositeRelation)
 					.defaultValue(defaultValue)
 					.partial(partial)
+					.supersets(supersets)
 					.build());
 		} catch (RuntimeException e) {
 			throw TracedException.addTrace(classDeclaration, e);
@@ -614,7 +623,7 @@ public class ModelInitializer {
 													ModelStoreBuilder storeBuilder) {
 		var partialRelation = getPartialRelation(predicateDefinition);
 		var query = queryCompiler.toQuery(partialRelation.name(), predicateDefinition);
-		boolean mutable = targetTypes.contains(partialRelation) || isActionTarget(predicateDefinition);
+		boolean mutable = mutableRelationCollector.isMutable(predicateDefinition);
 		TruthValue defaultValue;
 		if (predicateDefinition.getKind() == PredicateKind.ERROR) {
 			defaultValue = TruthValue.FALSE;
@@ -626,17 +635,22 @@ public class ModelInitializer {
 			mutable = mutable || cursor.move();
 		}
 		var parameterTypes = getParameterTypes(predicateDefinition, null);
-		var translator = new PredicateTranslator(partialRelation, query, parameterTypes, mutable, defaultValue);
+		var supersets = getSupersets(predicateDefinition);
+		var translator = new PredicateTranslator(partialRelation, query, parameterTypes, supersets, mutable,
+				defaultValue);
 		storeBuilder.with(translator);
-	}
-
-	private boolean isActionTarget(PredicateDefinition predicateDefinition) {
-		for (var importedProblem : importedProblems) {
-			if (actionTargetCollector.isActionTarget(importedProblem, predicateDefinition)) {
-				return true;
-			}
+		var computedPredicate = predicateDefinition.getComputedValue();
+		if (computedPredicate != null) {
+			var computedPartialRelation = getPartialRelation(computedPredicate);
+			// Always keep the interpretation of computed predicates, because they are used in solution serialization.
+			// This shouldn't add an overhead, because the lifted versions of the computed predicate are used in the
+			// computation of the interpretation of the original predicate, too. The exceptions with overhead are the
+			// error predicates, which can be safely ignored during serialization of consistent models.
+			var hasComputedInterpretation = !ProblemUtil.isError(predicateDefinition) || keepShadowPredicates;
+			var computedTranslator = new ShadowPredicateTranslator(computedPartialRelation, query,
+					hasComputedInterpretation);
+			storeBuilder.with(computedTranslator);
 		}
-		return false;
 	}
 
 	private List<PartialRelation> getParameterTypes(ParametricDefinition parametricDefinition,
@@ -650,14 +664,22 @@ public class ModelInitializer {
 		return Collections.unmodifiableList(parameterTypes);
 	}
 
+	private Set<PartialRelation> getSupersets(PredicateDefinition predicateDefinition) {
+		return predicateDefinition.getSuperSets().stream()
+				.map(this::getPartialRelation)
+				.collect(Collectors.toUnmodifiableSet());
+	}
+
 	private void collectBasePredicateDefinition(PredicateDefinition predicateDefinition,
 												ModelStoreBuilder storeBuilder) {
 		var partialRelation = getPartialRelation(predicateDefinition);
 		var parameterTypes = getParameterTypes(predicateDefinition, nodeRelation);
+		var supersets = getSupersets(predicateDefinition);
 		var seed = modelSeed.getSeed(partialRelation);
 		var defaultValue = seed.majorityValue() == TruthValue.FALSE ? TruthValue.FALSE : TruthValue.UNKNOWN;
 		boolean partial = predicateDefinition.getKind() == PredicateKind.PARTIAL;
-		var translator = new BasePredicateTranslator(partialRelation, parameterTypes, defaultValue, partial);
+		var translator = new BasePredicateTranslator(partialRelation, parameterTypes, supersets, defaultValue,
+                partial);
 		storeBuilder.with(translator);
 	}
 
@@ -775,10 +797,24 @@ public class ModelInitializer {
 						.ifPresent(dseBuilder -> dseBuilder.transformation(rule));
 			}
 			case PROPAGATION -> {
-				var rules = ruleCompiler.toPropagationRules(name, ruleDefinition);
+				var rules = new ArrayList<Rule>();
+				var propagationRules = ruleCompiler.toPropagationRules(name, ruleDefinition,
+						ConcretenessSpecification.PARTIAL);
+				var concretizationRules = ruleCompiler.toPropagationRules(name, ruleDefinition,
+						ConcretenessSpecification.CANDIDATE);
+				rules.addAll(propagationRules);
+				rules.addAll(concretizationRules);
+				problemTrace.putPropagationRuleDefinition(ruleDefinition, List.copyOf(rules));
+				storeBuilder.tryGetAdapter(PropagationBuilder.class).ifPresent(propagationBuilder -> {
+					propagationBuilder.rules(propagationRules);
+					propagationBuilder.concretizationRules(concretizationRules);
+				});
+			}
+			case CONCRETIZATION -> {
+				var rules = ruleCompiler.toPropagationRules(name, ruleDefinition, ConcretenessSpecification.CANDIDATE);
 				problemTrace.putPropagationRuleDefinition(ruleDefinition, rules);
 				storeBuilder.tryGetAdapter(PropagationBuilder.class)
-						.ifPresent(propagationBuilder -> propagationBuilder.rules(rules));
+						.ifPresent(propagationBuilder -> propagationBuilder.concretizationRules(rules));
 			}
 			case REFINEMENT -> {
 				// Rules not marked for decision or propagation are not invoked automatically.

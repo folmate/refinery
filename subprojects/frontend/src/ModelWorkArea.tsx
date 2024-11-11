@@ -26,14 +26,21 @@ import type ThemeStore from './theme/ThemeStore';
 const SplitGraphPane = observer(function SplitGraphPane({
   graph,
   themeStore,
+  touchesTop,
 }: {
   graph: GraphStore;
   themeStore: ThemeStore;
+  touchesTop: boolean;
 }): JSX.Element {
   return (
     <DirectionalSplitPane
       primary={<GraphPane graph={graph} />}
-      secondary={<TablePane graph={graph} />}
+      secondary={(horizontal) => (
+        <TablePane
+          graph={graph}
+          touchesTop={touchesTop && (!themeStore.showGraph || !horizontal)}
+        />
+      )}
       primaryOnly={!themeStore.showTable}
       secondaryOnly={!themeStore.showGraph}
     />
@@ -57,7 +64,13 @@ const GeneratedModelPane = observer(function GeneratedModelPane({
   const { message, error, graph } = generatedModel;
 
   if (graph !== undefined) {
-    return <SplitGraphPane graph={graph} themeStore={themeStore} />;
+    return (
+      <SplitGraphPane
+        graph={graph}
+        themeStore={themeStore}
+        touchesTop={false}
+      />
+    );
   }
 
   return (
@@ -79,6 +92,7 @@ const GeneratedModelPane = observer(function GeneratedModelPane({
         sx={(theme) => ({
           maxHeight: '6rem',
           height: 'calc(100% - 8rem)',
+          width: '100%',
           marginBottom: theme.spacing(1),
           padding: error ? 0 : theme.spacing(1),
           color: theme.palette.text.secondary,
@@ -103,14 +117,20 @@ const GeneratedModelPane = observer(function GeneratedModelPane({
   );
 });
 
-function ModelWorkArea(): JSX.Element {
+function ModelWorkArea({ touchesTop }: { touchesTop: boolean }): JSX.Element {
   const { editorStore, themeStore } = useRootStore();
 
   if (editorStore === undefined) {
     return <Loading />;
   }
 
-  const { graph, generatedModels, selectedGeneratedModel } = editorStore;
+  const {
+    concretize,
+    graph,
+    generatedModels,
+    selectedGeneratedModel,
+    selectedGeneratedModelStore: generatedModel,
+  } = editorStore;
 
   const generatedModelNames: string[] = [];
   const generatedModelTabs: JSX.Element[] = [];
@@ -132,10 +152,6 @@ function ModelWorkArea(): JSX.Element {
     );
     /* eslint-enable react/no-array-index-key */
   });
-  const generatedModel =
-    selectedGeneratedModel === undefined
-      ? undefined
-      : generatedModels.get(selectedGeneratedModel);
   const selectedIndex =
     selectedGeneratedModel === undefined
       ? 0
@@ -164,7 +180,7 @@ function ModelWorkArea(): JSX.Element {
           scrollButtons="auto"
           sx={{ flexGrow: 1 }}
         >
-          <Tab label="Initial model" />
+          <Tab label={`${concretize ? 'Concrete' : 'Initial'} model`} />
           {generatedModelTabs}
         </Tabs>
         <IconButton
@@ -178,14 +194,26 @@ function ModelWorkArea(): JSX.Element {
           <CloseIcon fontSize="small" />
         </IconButton>
       </Stack>
-      {generatedModel === undefined ? (
-        <SplitGraphPane graph={graph} themeStore={themeStore} />
-      ) : (
-        <GeneratedModelPane
-          generatedModel={generatedModel}
-          themeStore={themeStore}
-        />
-      )}
+      <Stack
+        direction="column"
+        height="100%"
+        width="100%"
+        overflow="hidden"
+        position="relative"
+      >
+        {generatedModel === undefined ? (
+          <SplitGraphPane
+            graph={graph}
+            themeStore={themeStore}
+            touchesTop={generatedModelTabs.length === 0 && touchesTop}
+          />
+        ) : (
+          <GeneratedModelPane
+            generatedModel={generatedModel}
+            themeStore={themeStore}
+          />
+        )}
+      </Stack>
     </Stack>
   );
 }

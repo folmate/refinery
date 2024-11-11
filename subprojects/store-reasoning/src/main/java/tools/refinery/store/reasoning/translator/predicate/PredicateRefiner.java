@@ -8,25 +8,33 @@ package tools.refinery.store.reasoning.translator.predicate;
 import org.jetbrains.annotations.Nullable;
 import tools.refinery.logic.term.truthvalue.TruthValue;
 import tools.refinery.store.reasoning.ReasoningAdapter;
-import tools.refinery.store.reasoning.refinement.ConcreteSymbolRefiner;
+import tools.refinery.store.reasoning.refinement.ConcreteRelationRefiner;
 import tools.refinery.store.reasoning.refinement.PartialInterpretationRefiner;
+import tools.refinery.store.reasoning.refinement.RefinementUtils;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.representation.PartialSymbol;
 import tools.refinery.store.reasoning.seed.ModelSeed;
+import tools.refinery.store.reasoning.translator.RoundingMode;
 import tools.refinery.store.representation.Symbol;
 import tools.refinery.store.tuple.Tuple;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
-class PredicateRefiner extends ConcreteSymbolRefiner<TruthValue, Boolean> {
+class PredicateRefiner extends ConcreteRelationRefiner {
 	private final List<PartialRelation> parameterTypes;
+	private final Set<PartialRelation> supertypes;
 	private @Nullable PartialInterpretationRefiner<TruthValue, Boolean>[] parameterTypeRefiners;
+	private PartialInterpretationRefiner<TruthValue, Boolean>[] supertypeRefiners;
 
-	protected PredicateRefiner(ReasoningAdapter adapter, PartialSymbol<TruthValue, Boolean> partialSymbol,
-							   Symbol<TruthValue> concreteSymbol, List<PartialRelation> parameterTypes) {
-		super(adapter, partialSymbol, concreteSymbol);
+	protected PredicateRefiner(
+			ReasoningAdapter adapter, PartialSymbol<TruthValue, Boolean> partialSymbol,
+			Symbol<TruthValue> concreteSymbol, List<PartialRelation> parameterTypes, Set<PartialRelation> supertypes,
+			RoundingMode roundingMode) {
+		super(adapter, partialSymbol, concreteSymbol, roundingMode);
 		this.parameterTypes = parameterTypes;
+		this.supertypes = supertypes;
 	}
 
 	@Override
@@ -43,12 +51,13 @@ class PredicateRefiner extends ConcreteSymbolRefiner<TruthValue, Boolean> {
 				array[i] = adapter.getRefiner(parameterType);
 			}
 		}
+		supertypeRefiners = RefinementUtils.getRefiners(adapter, supertypes);
 	}
 
 	@Override
 	public boolean merge(Tuple key, TruthValue value) {
 		var currentValue = get(key);
-		var mergedValue = currentValue.meet(value);
+		var mergedValue = concretizationAwareMeet(currentValue, value);
 		if (!Objects.equals(currentValue, mergedValue)) {
 			put(key, mergedValue);
 		}
@@ -68,7 +77,7 @@ class PredicateRefiner extends ConcreteSymbolRefiner<TruthValue, Boolean> {
 			if (value.must()) {
 				var key = cursor.getKey();
 				if (!refineParameters(key)) {
-					throw new IllegalArgumentException("Failed to merge parameter types of predicate %s for key %s"
+					throw new IllegalArgumentException("Failed to merge type constraints of predicate %s for key %s"
 							.formatted(predicate, key));
 				}
 			}
@@ -83,12 +92,13 @@ class PredicateRefiner extends ConcreteSymbolRefiner<TruthValue, Boolean> {
 				return false;
 			}
 		}
-		return true;
+		return RefinementUtils.mergeAll(supertypeRefiners, key, TruthValue.TRUE);
 	}
 
-	public static Factory<TruthValue, Boolean> of(Symbol<TruthValue> concreteSymbol,
-												  List<PartialRelation> parameterTypes) {
+	public static Factory<TruthValue, Boolean> of(
+			Symbol<TruthValue> concreteSymbol, List<PartialRelation> parameterTypes, Set<PartialRelation> supertypes,
+			RoundingMode roundingMode) {
 		return (adapter, partialSymbol) -> new PredicateRefiner(adapter, partialSymbol, concreteSymbol,
-				parameterTypes);
+				parameterTypes, supertypes, roundingMode);
 	}
 }

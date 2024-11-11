@@ -27,6 +27,8 @@
     <eStructuralFeatures xsi:type="ecore:EReference" name="referenceType" eType="#//Relation"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="invalidMultiplicity" eType="#//Relation"
         transient="true" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="superSets" upperBound="-1"
+        eType="#//Relation"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="NamedElement" abstract="true">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
@@ -37,6 +39,8 @@
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" eType="#//PredicateKind"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="computedValue" eType="#//PredicateDefinition"
         transient="true" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="superSets" upperBound="-1"
+        eType="#//Relation"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="Parameter" eSuperTypes="#//Variable">
     <eStructuralFeatures xsi:type="ecore:EReference" name="parameterType" eType="#//Relation"/>
@@ -270,11 +274,13 @@
     <eLiterals name="REFINEMENT"/>
     <eLiterals name="PROPAGATION" value="1"/>
     <eLiterals name="DECISION" value="2"/>
+    <eLiterals name="CONCRETIZATION" value="3"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="ParameterBinding">
     <eLiterals name="SINGLE"/>
     <eLiterals name="FOCUS" value="1"/>
-    <eLiterals name="MULTI" value="2"/>
+    <eLiterals name="LONE" value="2"/>
+    <eLiterals name="MULTI" value="3"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="Assertion" eSuperTypes="#//Statement #//AbstractAssertion">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="default" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"

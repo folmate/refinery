@@ -17,11 +17,12 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import Toolbar from '@mui/material/Toolbar';
-import Tooltip from '@mui/material/Tooltip';
 import { styled } from '@mui/material/styles';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { useResizeDetector } from 'react-resize-detector';
+
+import Tooltip from '../Tooltip';
 
 import type SearchPanelStore from './SearchPanelStore';
 
@@ -29,6 +30,7 @@ const DimLabel = styled(FormControlLabel)(({ theme }) => ({
   '.MuiFormControlLabel-label': {
     ...theme.typography.body2,
     color: theme.palette.text.secondary,
+    userSelect: 'none',
   },
 }));
 
@@ -60,7 +62,12 @@ export default observer(function SearchToolbar({
   return (
     <Toolbar
       variant="dense"
-      sx={{ py: 0.5, alignItems: 'center', minHeight: 'auto' }}
+      sx={{
+        // Match the height of the editor toolbar.
+        py: '5px',
+        alignItems: 'center',
+        minHeight: 'auto',
+      }}
       ref={ref}
     >
       <Stack

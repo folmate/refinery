@@ -14,7 +14,10 @@ import org.eclipse.emf.common.util.Diagnostic;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.xtext.EcoreUtil2;
+import org.eclipse.xtext.linking.impl.LinkingHelper;
 import org.eclipse.xtext.naming.IQualifiedNameConverter;
+import org.eclipse.xtext.naming.QualifiedName;
+import org.eclipse.xtext.nodemodel.util.NodeModelUtils;
 import org.eclipse.xtext.validation.Check;
 import org.jetbrains.annotations.Nullable;
 import tools.refinery.language.model.problem.*;
@@ -50,6 +53,7 @@ public class ProblemValidator extends AbstractProblemValidator {
 	public static final String INVALID_PREDICATE_ISSUE = ISSUE_PREFIX + "INVALID_PREDICATE";
 	public static final String INVALID_RULE_ISSUE = ISSUE_PREFIX + "INVALID_RULE";
 	public static final String INVALID_TRANSITIVE_CLOSURE_ISSUE = ISSUE_PREFIX + "INVALID_TRANSITIVE_CLOSURE";
+	public static final String INVALID_SUPERSET_ISSUE = ISSUE_PREFIX + "INVALID_SUPERSET";
 	public static final String SHADOW_RELATION_ISSUE = ISSUE_PREFIX + "SHADOW_RELATION";
 	public static final String UNSUPPORTED_ASSERTION_ISSUE = ISSUE_PREFIX + "UNSUPPORTED_ASSERTION";
 	public static final String UNKNOWN_EXPRESSION_ISSUE = ISSUE_PREFIX + "UNKNOWN_EXPRESSION";
@@ -76,6 +80,9 @@ public class ProblemValidator extends AbstractProblemValidator {
 	@Inject
 	private ProblemTypeAnalyzer typeAnalyzer;
 
+	@Inject
+	private LinkingHelper linkingHelper;
+
 	@Check
 	public void checkModuleName(Problem problem) {
 		var nameString = problem.getName();
@@ -95,7 +102,14 @@ public class ProblemValidator extends AbstractProblemValidator {
 		if (expectedName == null) {
 			return;
 		}
-		var name = NamingUtil.stripRootPrefix(qualifiedNameConverter.toQualifiedName(nameString));
+		QualifiedName qualifiedName;
+		try {
+			qualifiedName = qualifiedNameConverter.toQualifiedName(nameString);
+		} catch (IllegalArgumentException e) {
+			// No need to display an error, since the document already has a parse error in the qualified name.
+			return;
+		}
+		var name = NamingUtil.stripRootPrefix(qualifiedName);
 		if (!expectedName.equals(name)) {
 			var moduleKindName = switch (problem.getKind()) {
 				case PROBLEM -> "problem";
@@ -136,12 +150,29 @@ public class ProblemValidator extends AbstractProblemValidator {
 			var problem = EcoreUtil2.getContainerOfType(variable, Problem.class);
 			if (problem != null && referenceCounter.countReferences(problem, variable) <= 1) {
 				var name = variable.getName();
-				var message = ("Variable '%s' has only a single reference. " +
-						"Add another reference or mark is as a singleton variable: '_%s'").formatted(name, name);
+				var messageBuilder = new StringBuilder();
+				messageBuilder.append("Variable '").append(name).append("' has only a single reference.");
+				if (isUnquotedVariable(expr)) {
+					messageBuilder.append(" Add another reference or mark is as a singleton variable: '_")
+							.append(name).append("'.");
+				}
+				var message = messageBuilder.toString();
 				warning(message, expr, ProblemPackage.Literals.VARIABLE_OR_NODE_EXPR__VARIABLE_OR_NODE,
 						INSIGNIFICANT_INDEX, SINGLETON_VARIABLE_ISSUE);
 			}
 		}
+	}
+
+	private boolean isUnquotedVariable(VariableOrNodeExpr expr) {
+		var nodes = NodeModelUtils.findNodesForFeature(expr,
+				ProblemPackage.Literals.VARIABLE_OR_NODE_EXPR__VARIABLE_OR_NODE);
+		for (var node : nodes) {
+			var crossRefString = linkingHelper.getCrossRefNodeAsString(node, true);
+			if (NamingUtil.isQuoted(crossRefString)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Check
@@ -331,6 +362,43 @@ public class ProblemValidator extends AbstractProblemValidator {
 	}
 
 	@Check
+	public void checkReferenceSubSetting(ReferenceDeclaration referenceDeclaration) {
+		var superSets = referenceDeclaration.getSuperSets();
+		int superSetCount = superSets.size();
+		for (int i = 0; i < superSetCount; i++) {
+			var superSet = superSets.get(i);
+			checkSuperset(referenceDeclaration, superSet, i);
+		}
+	}
+
+	private void checkSuperset(ReferenceDeclaration referenceDeclaration, Relation superSet, int i) {
+		if (superSet.eIsProxy()) {
+			return;
+		}
+		if (superSet.equals(referenceDeclaration)) {
+			var message = "Reference declaration '%s' cannot subset itself."
+					.formatted(referenceDeclaration.getName());
+			acceptError(message, referenceDeclaration, ProblemPackage.Literals.REFERENCE_DECLARATION__SUPER_SETS,
+					i, INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		if (superSet instanceof DatatypeDeclaration) {
+			var message = "Reference declaration '%s' cannot subset datatypes."
+					.formatted(referenceDeclaration.getName());
+			acceptError(message, referenceDeclaration, ProblemPackage.Literals.REFERENCE_DECLARATION__SUPER_SETS,
+					i, INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		int arity = signatureProvider.getArity(superSet);
+		if (arity != 2) {
+			var message = "Superset '%s' of reference '%s' must have arity 2, got arity %d instead."
+					.formatted(superSet.getName(), referenceDeclaration.getName(), arity);
+			acceptError(message, referenceDeclaration, ProblemPackage.Literals.REFERENCE_DECLARATION__SUPER_SETS,
+					i, INVALID_ARITY_ISSUE);
+		}
+	}
+
+	@Check
 	public void checkPartialReference(ReferenceDeclaration referenceDeclaration) {
 		if (referenceDeclaration.getKind() == ReferenceKind.PARTIAL &&
 				!actionTargetCollector.isActionTarget(referenceDeclaration)) {
@@ -364,7 +432,9 @@ public class ProblemValidator extends AbstractProblemValidator {
 		}
 		boolean isDefaultReference = referenceDeclaration.getKind() == ReferenceKind.DEFAULT &&
 				!ProblemUtil.isContainerReference(referenceDeclaration);
-		if (isDefaultReference || referenceDeclaration.getKind() == ReferenceKind.REFERENCE) {
+		boolean isCrossReference = referenceDeclaration.getKind() == ReferenceKind.REFERENCE ||
+				referenceDeclaration.getKind() == ReferenceKind.PARTIAL;
+		if (isDefaultReference || isCrossReference) {
 			checkArity(referenceDeclaration, ProblemPackage.Literals.REFERENCE_DECLARATION__REFERENCE_TYPE, 1);
 			if (ProblemUtil.isShadow(referenceType)) {
 				var message = "Shadow relations '%s' is not allowed in reference types."
@@ -407,29 +477,107 @@ public class ProblemValidator extends AbstractProblemValidator {
 	}
 
 	@Check
+	public void checkPredicateSubSetting(PredicateDefinition predicateDefinition) {
+		var superSets = predicateDefinition.getSuperSets();
+		int superSetCount = superSets.size();
+		if (superSetCount == 0) {
+			return;
+		}
+		if (ProblemUtil.isShadow(predicateDefinition)) {
+			var message = "Shadow predicate '%s' cannot have any supersets."
+					.formatted(predicateDefinition.getName());
+			acceptError(message, predicateDefinition, ProblemPackage.Literals.NAMED_ELEMENT__NAME, 0,
+					INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		if (ProblemUtil.isError(predicateDefinition)) {
+			var message = ("Error predicate '%s' is the trivial (empty) subset of any relation. Remove redundant " +
+					"superset declarations.").formatted(predicateDefinition.getName());
+			acceptWarning(message, predicateDefinition, ProblemPackage.Literals.NAMED_ELEMENT__NAME, 0,
+					INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		int expectedArity = predicateDefinition.getParameters().size();
+		for (int i = 0; i < superSetCount; i++) {
+			var superSet = superSets.get(i);
+			checkSuperset(predicateDefinition, expectedArity, superSet, i);
+		}
+	}
+
+	private void checkSuperset(PredicateDefinition predicateDefinition, int expectedArity, Relation superSet, int i) {
+		if (superSet.eIsProxy()) {
+			return;
+		}
+		if (superSet.equals(predicateDefinition)) {
+			var message = "Predicate '%s' cannot subset itself."
+					.formatted(predicateDefinition.getName());
+			acceptError(message, predicateDefinition, ProblemPackage.Literals.PREDICATE_DEFINITION__SUPER_SETS,
+					i, INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		if (superSet instanceof DatatypeDeclaration) {
+			var message = "Predicate '%s' cannot subset datatypes."
+					.formatted(predicateDefinition.getName());
+			acceptError(message, predicateDefinition, ProblemPackage.Literals.PREDICATE_DEFINITION__SUPER_SETS,
+					i, INVALID_SUPERSET_ISSUE);
+			return;
+		}
+		int arity = signatureProvider.getArity(superSet);
+		if (arity != expectedArity) {
+			var message = "Superset '%s' of reference '%s' must have arity %d, got arity %d instead."
+					.formatted(superSet.getName(), predicateDefinition.getName(), expectedArity, arity);
+			acceptError(message, predicateDefinition, ProblemPackage.Literals.PREDICATE_DEFINITION__SUPER_SETS,
+					i, INVALID_ARITY_ISSUE);
+		}
+	}
+
+	@Check
 	public void checkParameter(Parameter parameter) {
 		checkArity(parameter, ProblemPackage.Literals.PARAMETER__PARAMETER_TYPE, 1);
 		var type = parameter.getParameterType();
 		if (type != null && !type.eIsProxy() && ProblemUtil.isShadow(type)) {
-			var message = "Shadow relations '%s' is not allowed in parameter types.".formatted(type.getName());
+			var message = "Shadow relation '%s' is not allowed in parameter types.".formatted(type.getName());
 			acceptError(message, parameter, ProblemPackage.Literals.PARAMETER__PARAMETER_TYPE, 0,
 					SHADOW_RELATION_ISSUE);
 		}
 		var parametricDefinition = EcoreUtil2.getContainerOfType(parameter, ParametricDefinition.class);
 		if (parametricDefinition instanceof RuleDefinition rule) {
-			var kind = rule.getKind();
 			var binding = parameter.getBinding();
-			if (kind == RuleKind.PROPAGATION && binding != ParameterBinding.SINGLE) {
-				acceptError("Parameter binding annotations are not supported in propagation rules.", parameter,
-						ProblemPackage.Literals.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
-			} else if (kind != RuleKind.DECISION && binding == ParameterBinding.MULTI) {
-				acceptError("Explicit multi-object bindings are only supported in decision rules.", parameter,
-						ProblemPackage.Literals.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
+			var kind = rule.getKind();
+			if (binding != ParameterBinding.SINGLE && ProblemUtil.parameterBindingAnnotationsAreForbidden(rule)) {
+				var message = "Parameter binding annotations are not supported in %s rules."
+						.formatted(kind.getName().toLowerCase(Locale.ROOT));
+				acceptError(message, parameter, ProblemPackage.Literals.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
 			}
 		} else {
 			if (parameter.getBinding() != ParameterBinding.SINGLE) {
-				acceptError("Parameter binding annotations are only supported in decision rules.", parameter,
-						ProblemPackage.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
+				acceptError("Parameter binding annotations are only supported in refinement rules.", parameter,
+						ProblemPackage.Literals.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
+			}
+		}
+	}
+
+	@Check
+	public void checkDiagonalParameters(RuleDefinition ruleDefinition) {
+		if (ProblemUtil.parameterBindingAnnotationsAreForbidden(ruleDefinition)) {
+			return;
+		}
+		var duplicateParameters = LinkedHashSet.<Parameter>newLinkedHashSet(ruleDefinition.getParameters().size());
+		for (var consequent : ruleDefinition.getConsequents()) {
+			for (var action : consequent.getActions()) {
+				var referenceCounts = ReferenceCounter.computeReferenceCounts(action);
+				for (var entry : referenceCounts.entrySet()) {
+					if (entry.getValue() >= 2 && entry.getKey() instanceof Parameter parameter) {
+						duplicateParameters.add(parameter);
+					}
+				}
+			}
+		}
+		for (var parameter : duplicateParameters) {
+			if (parameter.getBinding() == ParameterBinding.MULTI) {
+				var message = ("Parameter '%s' must not be a multi-object, because it appears multiple times in a " +
+						"rule consequent.").formatted(parameter.getName());
+				acceptError(message, parameter, ProblemPackage.Literals.PARAMETER__BINDING, 0, INVALID_MODALITY_ISSUE);
 			}
 		}
 	}
@@ -609,7 +757,7 @@ public class ProblemValidator extends AbstractProblemValidator {
 		if (ProblemUtil.isAtomNode(node) && value != LogicValue.TRUE) {
 			acceptError("Atom nodes must exist.", assertion, null, 0, UNSUPPORTED_ASSERTION_ISSUE);
 		}
-		if (ProblemUtil.isMultiNode(node) && value != LogicValue.FALSE && ProblemUtil.isInModule(node)) {
+		if (ProblemUtil.isMultiNode(node) && value != LogicValue.FALSE && ProblemUtil.isInModule(assertion)) {
 			acceptError("Multi-objects in modules cannot be required to exist.", assertion, null, 0,
 					UNSUPPORTED_ASSERTION_ISSUE);
 		}

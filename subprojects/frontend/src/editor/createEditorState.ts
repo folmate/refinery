@@ -39,13 +39,16 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
+import { indentationMarkers } from '@replit/codemirror-indentation-markers';
 
 import problemLanguageSupport from '../language/problemLanguageSupport';
 
 import type EditorStore from './EditorStore';
 import SearchPanel from './SearchPanel';
+import bidiIsolatesExtension from './bidiIsolatesExtension';
 import exposeDiagnostics from './exposeDiagnostics';
 import findOccurrences from './findOccurrences';
+import scrollbarsExtension from './scrollbarsExtension';
 import semanticHighlighting from './semanticHighlighting';
 
 export const historyCompartment = new Compartment();
@@ -66,6 +69,7 @@ export default function createEditorState(
         override: [(context) => store.contentAssist(context)],
       }),
       closeBrackets(),
+      bidiIsolatesExtension(),
       bracketMatching(),
       drawSelection(),
       EditorState.allowMultipleSelections.of(true),
@@ -76,6 +80,9 @@ export default function createEditorState(
       highlightSpecialChars(),
       historyCompartment.of([createHistoryExtension()]),
       indentOnInput(),
+      indentationMarkers({
+        markerType: 'codeOnly',
+      }),
       rectangularSelection(),
       search({
         createPanel(view) {
@@ -109,6 +116,8 @@ export default function createEditorState(
           return div;
         },
       }),
+      // Place this extension after the gutter, because it has to listen to gutter size changes.
+      scrollbarsExtension(),
       keymap.of([
         { key: 'Mod-Shift-f', run: () => store.formatText() },
         { key: 'Mod-o', run: () => store.openFile() },

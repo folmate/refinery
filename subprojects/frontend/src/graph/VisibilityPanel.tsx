@@ -21,6 +21,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 
 import Tooltip from '../Tooltip';
+import isBuiltIn from '../utils/isBuiltIn';
 
 import type GraphStore from './GraphStore';
 import { isVisibilityAllowed } from './GraphStore';
@@ -33,6 +34,7 @@ const VisibilityDialogScroll = styled('div', {
 })<{ dialog: boolean }>(({ theme, dialog }) => {
   const overlayOpacity = dialog ? 0.16 : 0.09;
   return {
+    contain: 'content',
     display: 'flex',
     flexDirection: 'column',
     height: 'auto',
@@ -197,7 +199,7 @@ function VisibilityPanel({
         </td>
       </tr>
     );
-    if (name.startsWith('builtin::')) {
+    if (isBuiltIn(metadata)) {
       builtinRows.push(row);
     } else {
       rows.push(row);

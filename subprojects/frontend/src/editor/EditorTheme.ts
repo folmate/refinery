@@ -14,10 +14,10 @@ import {
   type CSSObject,
   type Theme,
 } from '@mui/material/styles';
-import { lch } from 'd3-color';
 import { range } from 'lodash-es';
 
 import svgURL from '../utils/svgURL';
+import typeHashTextColor from '../utils/typeHashTextColor';
 
 function createTypeHashStyles(
   theme: Theme,
@@ -37,21 +37,9 @@ function createTypeHashStyles(
     };
   });
   hexTypeHashes.forEach((typeHash) => {
-    let color = lch(`#${typeHash}`);
-    if (theme.palette.mode === 'dark') {
-      color = color.brighter();
-      if (color.l < 60) {
-        color.l = 60;
-      }
-    } else {
-      color = color.darker();
-      if (color.l > 60) {
-        color.l = 60;
-      }
-    }
     result[`.tok-problem-typeHash-_${typeHash}`] = {
       '&, .tok-typeName': {
-        color: color.formatRgb(),
+        color: typeHashTextColor(`#${typeHash}`, theme),
         fontWeight: theme.typography.fontWeightEditorTypeHash,
       },
     };
@@ -88,9 +76,12 @@ export default styled('div', {
     },
   };
 
+  const scrollbarOpacity = theme.palette.mode === 'dark' ? 0.16 : 0.28;
+
   const generalStyle: CSSObject = {
     background: theme.palette.background.default,
     '&, .cm-editor': {
+      overflow: 'none',
       height: '100%',
     },
     '.cm-scroller': {
@@ -105,12 +96,23 @@ export default styled('div', {
       ...editorFontStyle,
     },
     '.cm-activeLine': {
-      background: showActiveLine
+      backgroundColor: showActiveLine
         ? theme.palette.highlight.activeLine
         : 'transparent',
     },
     '.cm-activeLineGutter': {
       background: 'transparent',
+    },
+    '.cm-indent-markers': {
+      '--indent-marker-bg-color': theme.palette.text.disabled,
+      '--indent-marker-active-bg-color':
+        theme.palette.mode === 'dark'
+          ? theme.palette.text.secondary
+          : theme.palette.text.primary,
+    },
+    '.cm-indent-markers::before': {
+      left: -4,
+      zIndex: 0,
     },
     '.cm-cursor, .cm-dropCursor, .cm-cursor-primary': {
       borderLeft: `2px solid ${theme.palette.info.main}`,
@@ -126,7 +128,31 @@ export default styled('div', {
       },
     },
     '.cm-line': {
-      padding: '0 12px 0 0px',
+      padding: '0 12px 0 0',
+    },
+    '.cm-track': {
+      // Appar above the directional splitter.
+      zIndex: 1000,
+    },
+    '.cm-thumb': {
+      background: theme.palette.text.secondary,
+      opacity: scrollbarOpacity,
+      mixBlendMode: theme.palette.mode === 'dark' ? 'screen' : 'multiply',
+      '&.active, &.cm-thumb-active': {
+        opacity: 0.72,
+      },
+    },
+    '.cm-track:hover .cm-thumb': {
+      opacity: 0.5,
+      '@media (hover: none)': {
+        opacity: scrollbarOpacity,
+      },
+      '&.active, &.cm-thumb-active': {
+        opacity: 0.72,
+      },
+    },
+    '.cm-editor:has(> .cm-panels-top) .cm-top-shadow': {
+      display: 'none',
     },
   };
 
@@ -178,6 +204,7 @@ export default styled('div', {
     '.tok-problem-error': {
       '&, & .tok-typeName': {
         color: theme.palette.highlight.comment,
+        textDecoration: 'line-through',
       },
     },
     '.tok-invalid': {
@@ -188,7 +215,7 @@ export default styled('div', {
     '.tok-problem-builtin': {
       '&, & .tok-typeName, & .tok-atom, & .tok-variableName': {
         color: theme.palette.primary.main,
-        fontWeight: 400,
+        fontWeight: theme.typography.fontWeightEditorNormal,
         fontStyle: 'normal',
       },
     },
@@ -226,15 +253,16 @@ export default styled('div', {
     '.cm-searchMatch-selected': {
       background: theme.palette.highlight.search.selected,
     },
-    '.cm-scroller-selection': {
-      position: 'absolute',
-      right: 0,
+    '.cm-track-annotation-selection': {
+      left: 0,
+      width: '100%',
       boxShadow: `0 2px 0 ${theme.palette.info.main} inset`,
       zIndex: 200,
     },
-    '.cm-scroller-occurrence': {
-      position: 'absolute',
-      background: theme.palette.text.secondary,
+    '.cm-track-annotation-occurrence': {
+      left: 0,
+      width: '50%',
+      background: theme.palette.highlight.comment,
       zIndex: 150,
     },
   };
@@ -261,7 +289,7 @@ export default styled('div', {
       borderBottom: `1px solid ${theme.palette.outer.border}`,
     },
     '.cm-panels-top + div + .cm-scroller': {
-      paddingTop: theme.spacing(0.5),
+      marginTop: theme.spacing(0.5),
     },
     '.cm-panel': {
       color: theme.palette.text.primary,
@@ -335,9 +363,7 @@ export default styled('div', {
           display: 'none',
         },
       },
-      [`.cm-scroller-diagnostic-${severity}`]: {
-        position: 'absolute',
-        right: 0,
+      [`.cm-track-annotation-diagnostic-${severity}`]: {
         background: color,
         zIndex,
       },
@@ -398,6 +424,10 @@ export default styled('div', {
     },
     '.cm-lintRange-active': {
       background: theme.palette.highlight.activeLintRange,
+    },
+    '.cm-track-annotation-diagnostic': {
+      left: '50%',
+      width: '50%',
     },
     ...lintSeverityStyle('error', cancelSVG, 120),
     ...lintSeverityStyle('warning', warningSVG, 110),

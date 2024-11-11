@@ -12,11 +12,9 @@ import tools.refinery.logic.term.Variable;
 import tools.refinery.store.model.ModelStoreBuilder;
 import tools.refinery.store.model.ModelStoreConfiguration;
 import tools.refinery.store.reasoning.interpretation.PartialRelationRewriter;
-import tools.refinery.store.reasoning.literal.ComputedConstraint;
 import tools.refinery.store.reasoning.literal.Concreteness;
 import tools.refinery.store.reasoning.literal.ModalConstraint;
 import tools.refinery.store.reasoning.literal.Modality;
-import tools.refinery.store.reasoning.refinement.RefinementBasedInitializer;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.PartialRelationTranslator;
 import tools.refinery.store.reasoning.translator.TranslationException;
@@ -48,21 +46,13 @@ public class OppositeRelationTranslator implements ModelStoreConfiguration, Part
 		storeBuilder.with(PartialRelationTranslator.of(linkType)
 				.rewriter(this)
 				.interpretation(OppositeInterpretation.of(opposite))
-				.refiner(OppositeRefiner.of(opposite))
-				.initializer(new RefinementBasedInitializer<>(linkType)));
+				.refiner(OppositeRefiner.of(opposite)));
 	}
 
 	@Override
 	public List<Literal> rewriteLiteral(Set<Variable> positiveVariables, AbstractCallLiteral literal,
 										Modality modality, Concreteness concreteness) {
 		var modalOpposite = ModalConstraint.of(modality, concreteness, opposite);
-		return rewriteWithOpposite(literal, modalOpposite);
-	}
-
-	@Override
-	public List<Literal> rewriteComputed(Set<Variable> positiveVariables, AbstractCallLiteral literal,
-										 Modality modality, Concreteness concreteness) {
-		var modalOpposite = ModalConstraint.of(modality, concreteness, new ComputedConstraint(opposite));
 		return rewriteWithOpposite(literal, modalOpposite);
 	}
 

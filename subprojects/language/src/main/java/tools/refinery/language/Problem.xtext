@@ -52,7 +52,10 @@ ReferenceDeclaration:
 	kind=ReferenceKind referenceType=[Relation|QualifiedName])
 	(multiplicity=ReferenceMultiplicity)?
 	name=Identifier
-	("opposite" opposite=[ReferenceDeclaration|QualifiedName])?;
+	(("opposite" opposite=[ReferenceDeclaration|QualifiedName])? &
+	("subsets" superSets+=[ReferenceDeclaration|QualifiedName]
+		("," superSets+=[ReferenceDeclaration|QualifiedName])*
+	)?);
 
 ReferenceMultiplicity returns Multiplicity:
 	"[" Multiplicity "]";
@@ -67,6 +70,9 @@ PredicateDefinition:
 	(kind=ErrorPredicateKind | kind=PredicateKind? "pred")
 	name=Identifier
 	"(" (parameters+=Parameter ("," parameters+=Parameter)*)? ")"
+	("subsets" superSets+=[ReferenceDeclaration|QualifiedName]
+		("," superSets+=[ReferenceDeclaration|QualifiedName])*
+	)?
 	("<->" bodies+=Conjunction (";" bodies+=Conjunction)*)?
 	".";
 
@@ -83,7 +89,7 @@ Conjunction:
 //	Conjunction ({Match.condition=current} "->" value=Expr)?;
 
 enum RuleKind:
-	DECISION="decision" | PROPAGATION="propagation";
+	DECISION="decision" | PROPAGATION="propagation" | CONCRETIZATION="concretization";
 
 RuleDefinition:
 	kind=RuleKind? "rule"
@@ -94,7 +100,7 @@ RuleDefinition:
 	".";
 
 enum ParameterBinding:
-	FOCUS="+" | MULTI="?";
+	FOCUS="+" | LONE="?" | MULTI="*";
 
 Parameter:
 	parameterType=[Relation|QualifiedName]? binding=ParameterBinding? name=Identifier;
@@ -295,11 +301,12 @@ NonContainmentQualifiedName hidden():
 	(NonContainmentIdentifier | "::" Identifier) (QUALIFIED_NAME_SEPARATOR Identifier)*;
 
 Identifier:
-	NonContainmentIdentifier | "contains" | "container";
+	NonContainmentIdentifier | "contains" | "container" | "opposite" | "subsets";
 
 NonContainmentIdentifier:
-	ID | "atom" | "multi" | "contained" | "problem" | "module" |
-	"datatype" | "aggregator" | "decision" | "propagation" | "shadow";
+	ID | QUOTED_ID | "atom" | "multi" | "problem" | "module" |
+	"datatype" | "aggregator" | "decision" | "propagation" | "concretization" |
+	"shadow";
 
 Real returns ecore::EDouble:
 	EXPONENTIAL | INT "." (INT | EXPONENTIAL);
@@ -320,3 +327,10 @@ terminal EXPONENTIAL:
 @Override
 terminal SL_COMMENT:
 	('%' | '//') !('\n' | '\r')* ('\r'? '\n')?;
+
+@Override
+terminal STRING:
+	'"' ( '\\' . /* 'b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\' */ | !('\\'|'"') )* '"';
+
+terminal QUOTED_ID:
+	"'" ( '\\' . /* 'b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\' */ | !('\\'|"'") )* "'";
