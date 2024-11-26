@@ -260,5 +260,14 @@
     <genClasses ecoreClass="problem.ecore#//Assertion">
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//Assertion/default"/>
     </genClasses>
+    <genClasses ecoreClass="problem.ecore#//EventDefinition"/>
+    <genClasses ecoreClass="problem.ecore#//EventToken">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/probability"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/key"/>
+    </genClasses>
+    <genClasses ecoreClass="problem.ecore#//BinaryEvent">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//BinaryEvent/tokens"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//BinaryEvent/predicate"/>
+    </genClasses>
   </genPackages>
 </genmodel:GenModel>

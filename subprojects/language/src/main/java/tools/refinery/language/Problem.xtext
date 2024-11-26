@@ -19,7 +19,7 @@ Statement:
 	ImportStatement | Assertion | ClassDeclaration | EnumDeclaration |
 	DatatypeDeclaration | AggregatorDeclaration | PredicateDefinition |
 	/* FunctionDefinition | */ RuleDefinition |
-	ScopeDeclaration | NodeDeclaration;
+	ScopeDeclaration | NodeDeclaration | EventDefinition ;
 
 ImportStatement:
 	"import" importedModule=[Problem|QualifiedName] ("as" alias=ID)? ".";
@@ -334,3 +334,21 @@ terminal STRING:
 
 terminal QUOTED_ID:
 	"'" ( '\\' . /* 'b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\' */ | !('\\'|"'") )* "'";
+
+EventToken:
+	probability=Real
+	"::"
+	key=ID;
+
+EventDefinition:
+	BinaryEvent ;
+	
+BinaryEvent:
+	"binary"
+	tokens+=EventToken
+	(tokens+=EventToken)?
+	predicate=PredicateDefinition;
+
+
+
+
