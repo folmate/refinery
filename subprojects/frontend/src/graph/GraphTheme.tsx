@@ -177,7 +177,7 @@ export function createGraphTheme({
         strokeDasharray: '2 4',
       },
       '.node-header': {
-        fill: theme.palette.background.default,
+        fill: `${theme.palette.background.default} !important`,
       },
       '.icon-TRUE': {
         fill: theme.palette.text.secondary,
@@ -188,7 +188,7 @@ export function createGraphTheme({
         stroke: errorColor.main,
       },
       '.node-header': {
-        fill: theme.palette.background.default,
+        fill: `${theme.palette.background.default} !important`,
       },
     },
   };
@@ -203,6 +203,11 @@ export default styled('div', {
     '& svg': {
       userSelect: 'none',
       ...createGraphTheme(args),
+      text: {
+        // In WebKit, the cursor for `text` elements is `text` by default,
+        // but it is `default` everywhere else. We set `default` to normalize behavior.
+        cursor: 'default',
+      },
     },
     '&.simplified svg': {
       'text, .edge-arrow, .icon, .node-shadow.node-bg': {

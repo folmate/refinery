@@ -288,8 +288,8 @@ export default styled('div', {
       color: theme.palette.text.primary,
       borderBottom: `1px solid ${theme.palette.outer.border}`,
     },
-    '.cm-panels-top + div + .cm-scroller': {
-      marginTop: theme.spacing(0.5),
+    '.cm-panels-bottom': {
+      borderTop: 'none',
     },
     '.cm-panel': {
       color: theme.palette.text.primary,
@@ -380,7 +380,7 @@ export default styled('div', {
     '.cm-tooltip.cm-tooltip-hover, .cm-tooltip.cm-tooltip-lint': {
       ...((theme.components?.MuiTooltip?.styleOverrides?.tooltip as
         | CSSObject
-        | undefined) || {}),
+        | undefined) ?? {}),
       ...theme.typography.body2,
       borderRadius: theme.shape.borderRadius,
       overflow: 'hidden',
