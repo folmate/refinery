@@ -32,6 +32,7 @@ include(
 		"store-reasoning",
 		"store-reasoning-scope",
 		"store-reasoning-smt",
+		"probability",
 		"versions",
 )
 

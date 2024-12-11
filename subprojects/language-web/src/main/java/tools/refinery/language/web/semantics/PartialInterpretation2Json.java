@@ -15,7 +15,9 @@ import tools.refinery.logic.term.cardinalityinterval.CardinalityInterval;
 import tools.refinery.logic.term.cardinalityinterval.CardinalityIntervals;
 import tools.refinery.store.map.Cursor;
 import tools.refinery.store.model.Model;
+import tools.refinery.store.query.ModelQueryAdapter;
 import tools.refinery.store.reasoning.literal.Concreteness;
+import tools.refinery.store.reasoning.representation.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.multiobject.MultiObjectTranslator;
 import tools.refinery.store.tuple.Tuple;
@@ -41,10 +43,21 @@ public class PartialInterpretation2Json {
 			json.add(name, tuples);
 			cancellationToken.checkCancelled();
 		}
+		for (var entry : facade.getProblemTrace().getEventDefinitionTrace().entrySet()) {
+			var eventRelation = entry.getValue();
+			var tuples = getTuplesJson(facade, eventRelation);
+			json.add(eventRelation.name, tuples);
+			cancellationToken.checkCancelled();
+		}
 		json.add("builtin::count", getCountJson(model, facade.getConcreteness()));
+		System.out.println(json);
 		return json;
 	}
-
+	private static JsonArray getTuplesJson(ModelFacade facade, EventRelation eventSymbol){
+		var interpretation = facade.getModel().getAdapter(ModelQueryAdapter.class).getResultSet(eventSymbol.query());
+		var cursor = interpretation.getAll();
+		return getTuplesJson(cursor);
+	}
 	private static JsonArray getTuplesJson(ModelFacade facade, PartialRelation partialSymbol) {
 		var interpretation = facade.getPartialInterpretation(partialSymbol);
 		var cursor = interpretation.getAll();

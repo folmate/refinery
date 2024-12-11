@@ -165,6 +165,9 @@ export const RelationMetadata = z.object({
       type: z.literal('pred'),
       kind: z.enum(['defined', 'base', 'error', 'shadow']),
     }),
+    z.object({
+      type: z.literal('event'),
+    }),
   ]),
 });
 

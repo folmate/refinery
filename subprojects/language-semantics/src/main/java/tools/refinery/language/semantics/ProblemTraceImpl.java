@@ -16,6 +16,7 @@ import org.eclipse.xtext.scoping.IScopeProvider;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
+import tools.refinery.store.reasoning.representation.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.TranslationException;
 import tools.refinery.store.reasoning.translator.metamodel.Metamodel;
@@ -37,6 +38,7 @@ class ProblemTraceImpl implements ProblemTrace {
 	private final MutableObjectIntMap<Node> mutableNodeTrace = ObjectIntMaps.mutable.empty();
 	private final ObjectIntMap<Node> nodeTrace = mutableNodeTrace.asUnmodifiable();
 	private final Map<Relation, PartialRelation> mutableRelationTrace = new LinkedHashMap<>();
+	private final Map<EventDefinition, EventRelation> eventDefinitionEventRelationMap = new LinkedHashMap<>();
 	private final Map<Relation, PartialRelation> relationTrace =
 			Collections.unmodifiableMap(mutableRelationTrace);
 	private final Map<AnyPartialSymbol, Relation> mutableInverseTrace = new HashMap<>();
@@ -100,7 +102,13 @@ class ProblemTraceImpl implements ProblemTrace {
 	public Map<Relation, PartialRelation> getRelationTrace() {
 		return relationTrace;
 	}
-
+	void putEvent(EventDefinition event, EventRelation relation){
+		var oldEventDefinition = eventDefinitionEventRelationMap.put(event, relation);
+		if (oldEventDefinition != null) {
+			throw new TracedException(event,
+					"EventDefinition already mapped to partial relation: " + oldEventDefinition);
+		}
+	}
 	void putRelation(Relation relation, PartialRelation partialRelation) {
 		var oldPartialRelation = mutableRelationTrace.put(relation, partialRelation);
 		if (oldPartialRelation != null) {
@@ -201,6 +209,11 @@ class ProblemTraceImpl implements ProblemTrace {
 	public PartialRelation getPartialRelation(String qualifiedName) {
 		var convertedName = qualifiedNameConverter.toQualifiedName(qualifiedName);
 		return getPartialRelation(convertedName);
+	}
+
+	@Override
+	public Map<EventDefinition, EventRelation> getEventDefinitionTrace() {
+		return eventDefinitionEventRelationMap;
 	}
 
 	private <T> T getElement(IScope scope, QualifiedName qualifiedName, Class<T> type) {

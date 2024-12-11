@@ -22,6 +22,7 @@ import tools.refinery.language.utils.ProblemUtil;
 import tools.refinery.store.model.Model;
 import tools.refinery.store.reasoning.ReasoningAdapter;
 import tools.refinery.store.reasoning.literal.Concreteness;
+import tools.refinery.store.reasoning.representation.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 
 import java.util.ArrayList;
@@ -109,11 +110,18 @@ public class MetadataCreator {
 
 	public List<RelationMetadata> getRelationsMetadata() {
 		var relationTrace = problemTrace.getRelationTrace();
-		var relations = new ArrayList<RelationMetadata>(relationTrace.size());
+		var eventTrace = problemTrace.getEventDefinitionTrace();
+		var relations = new ArrayList<RelationMetadata>(relationTrace.size()+ eventTrace.size());
 		for (var entry : relationTrace.entrySet()) {
 			var relation = entry.getKey();
 			var partialRelation = entry.getValue();
 			var metadata = getRelationMetadata(relation, partialRelation);
+			relations.add(metadata);
+		}
+		for (var entry : eventTrace.entrySet()) {
+			var eventDefinition = entry.getKey();
+			var eventRelation = entry.getValue();
+			var metadata = getEventMetadata(eventDefinition, eventRelation);
 			relations.add(metadata);
 		}
 		return Collections.unmodifiableList(relations);
@@ -128,6 +136,15 @@ public class MetadataCreator {
 		var parameterNames = getParameterNames(relation);
 		var detail = getRelationDetail(relation, partialRelation);
 		return new RelationMetadata(qualifiedNameString, simpleNameString, arity, parameterNames, detail);
+	}
+
+	private RelationMetadata getEventMetadata(EventDefinition eventDefinition, EventRelation eventRelation) {
+		var name = eventRelation.name;
+		var arity = eventRelation.arity();
+		//TODO EVENT fixme
+		var parameterNames = getParameterNames(((BinaryEvent) eventDefinition).getPredicate());
+		var detail = getEventDetail(eventDefinition, eventRelation);
+		return new RelationMetadata(name, name, arity, parameterNames, detail);
 	}
 
 	@Nullable
@@ -158,6 +175,9 @@ public class MetadataCreator {
 			case PredicateDefinition predicateDefinition -> getPredicateDetail(predicateDefinition);
 			default -> throw new TracedException(relation, "Unknown relation");
 		};
+	}
+	private RelationDetail getEventDetail(EventDefinition eventDefinition, EventRelation eventRelation){
+		return new RelationDetail.Event();
 	}
 
 	private RelationDetail getClassDetail(ClassDeclaration classDeclaration) {

@@ -17,6 +17,7 @@ import tools.refinery.language.semantics.internal.query.RuleCompiler;
 import tools.refinery.language.utils.BuiltinSymbols;
 import tools.refinery.language.utils.ProblemUtil;
 import tools.refinery.logic.dnf.InvalidClauseException;
+import tools.refinery.logic.dnf.RelationalQuery;
 import tools.refinery.logic.term.cardinalityinterval.CardinalityInterval;
 import tools.refinery.logic.term.cardinalityinterval.CardinalityIntervals;
 import tools.refinery.logic.term.truthvalue.TruthValue;
@@ -27,6 +28,7 @@ import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.model.ModelStoreBuilder;
 import tools.refinery.store.reasoning.ReasoningAdapter;
 import tools.refinery.store.reasoning.literal.ConcretenessSpecification;
+import tools.refinery.store.reasoning.representation.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.scope.ScopePropagator;
 import tools.refinery.store.reasoning.seed.ModelSeed;
@@ -44,6 +46,7 @@ import tools.refinery.store.reasoning.translator.multiplicity.UnconstrainedMulti
 import tools.refinery.store.reasoning.translator.predicate.BasePredicateTranslator;
 import tools.refinery.store.reasoning.translator.predicate.PredicateTranslator;
 import tools.refinery.store.reasoning.translator.predicate.ShadowPredicateTranslator;
+import tools.refinery.store.reasoning.translator.probability.BinaryEventTranslator;
 import tools.refinery.store.statecoding.StateCoderBuilder;
 import tools.refinery.store.tuple.Tuple;
 import tools.refinery.store.tuple.Tuple1;
@@ -89,7 +92,11 @@ public class ModelInitializer {
 
 	private final Map<Relation, RelationInfo> relationInfoMap = new LinkedHashMap<>();
 
+	private final Map<EventDefinition, EventRelation> eventDefinitionEventRelationMap = new LinkedHashMap<>();
+
 	private final Map<PartialRelation, RelationInfo> partialRelationInfoMap = new HashMap<>();
+
+	private final Map<PartialRelation, RelationalQuery> partialRelationRelationalQueryMap = new HashMap<>();
 
 	private final MetamodelBuilder metamodelBuilder = Metamodel.builder();
 
@@ -199,6 +206,7 @@ public class ModelInitializer {
 				storeBuilder.with(scopePropagator);
 			}
 			collectPredicates(storeBuilder);
+			collectEvents(storeBuilder);
 			collectRules(storeBuilder);
 			storeBuilder.tryGetAdapter(StateCoderBuilder.class)
 					.ifPresent(stateCoderBuilder -> stateCoderBuilder.individuals(individuals));
@@ -277,6 +285,8 @@ public class ModelInitializer {
 					collectPartialRelation(enumDeclaration, 1, TruthValue.FALSE, TruthValue.FALSE);
 				} else if (statement instanceof PredicateDefinition predicateDefinition) {
 					collectPredicateDefinitionSymbol(predicateDefinition);
+				} else if(statement instanceof EventDefinition eventDefinition){
+					collectEventDefinitionSymbol(eventDefinition);
 				}
 			}
 		}
@@ -294,6 +304,25 @@ public class ModelInitializer {
 				collectPartialRelation(invalidMultiplicityConstraint, 1, TruthValue.FALSE, TruthValue.FALSE);
 			}
 		}
+	}
+
+	private void collectEventDefinitionSymbol(EventDefinition eventDefinition){
+		if(eventDefinition instanceof BinaryEvent binaryEvent){
+			collectBinaryEventDefinitionSymbol(binaryEvent);
+		}
+	}
+	//TODO EVENT
+	private void collectBinaryEventDefinitionSymbol(BinaryEvent binaryEvent){
+		var name = binaryEvent.getPredicate().getName();
+
+		binaryEvent.getPredicate().setName("%s#Select".formatted(name));
+		collectPredicateDefinitionSymbol(binaryEvent.getPredicate());
+
+		var partialRelation = getPartialRelation(binaryEvent.getPredicate());
+		var eventRelation = new EventRelation(name, partialRelation);
+		problemTrace.putEvent(binaryEvent, eventRelation);
+		eventDefinitionEventRelationMap.put(binaryEvent, eventRelation);
+
 	}
 
 	private void collectPredicateDefinitionSymbol(PredicateDefinition predicateDefinition) {
@@ -581,7 +610,33 @@ public class ModelInitializer {
 		}
 		return Tuple.of(nodes);
 	}
+	//TODO EVENT collect events
+	private void collectEvents(ModelStoreBuilder storeBuilder){
+		for (var importedProblem : importedProblems) {
+			for (var statement : importedProblem.getStatements()) {
+				if (statement instanceof EventDefinition eventDefinition) {
+					collectEventDefinition(eventDefinition, storeBuilder);
+				}
+			}
+		}
+	}
 
+	private void collectEventDefinition(EventDefinition eventDefinition, ModelStoreBuilder storeBuilder){
+		if(eventDefinition instanceof BinaryEvent binaryEvent){
+			collectBinaryEventDefinition(binaryEvent, storeBuilder);
+		}
+	}
+
+	private void collectBinaryEventDefinition(BinaryEvent binaryEvent, ModelStoreBuilder storeBuilder){
+		collectPredicateDefinitionTraced(binaryEvent.getPredicate(), storeBuilder);
+
+		var partialRelation = getPartialRelation(binaryEvent.getPredicate());
+		var eventRelation = eventDefinitionEventRelationMap.get(binaryEvent);
+		var selector = partialRelationRelationalQueryMap.get(partialRelation);
+
+		var translator = new BinaryEventTranslator(eventRelation, selector);
+		storeBuilder.with(translator);
+	}
 	private void collectPredicates(ModelStoreBuilder storeBuilder) {
 		for (var importedProblem : importedProblems) {
 			for (var statement : importedProblem.getStatements()) {
@@ -623,6 +678,7 @@ public class ModelInitializer {
 													ModelStoreBuilder storeBuilder) {
 		var partialRelation = getPartialRelation(predicateDefinition);
 		var query = queryCompiler.toQuery(partialRelation.name(), predicateDefinition);
+		partialRelationRelationalQueryMap.put(partialRelation, query);
 		boolean mutable = mutableRelationCollector.isMutable(predicateDefinition);
 		TruthValue defaultValue;
 		if (predicateDefinition.getKind() == PredicateKind.ERROR) {

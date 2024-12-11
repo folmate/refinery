@@ -37,7 +37,8 @@ public class XtextWebSocket implements ResponseHandler {
 					.registerSubtype(RelationDetail.Computed.class, "computed")
 					.registerSubtype(RelationDetail.Reference.class, "reference")
 					.registerSubtype(RelationDetail.Opposite.class, "opposite")
-					.registerSubtype(RelationDetail.Predicate.class, "pred"))
+					.registerSubtype(RelationDetail.Predicate.class, "pred")
+					.registerSubtype(RelationDetail.Event.class, "event"))
 			.registerTypeAdapter(NodeKind.class, new LowercaseTypeAdapter<>(NodeKind.class))
 			.registerTypeAdapter(PredicateDetailKind.class, new LowercaseTypeAdapter<>(PredicateDetailKind.class))
 			.create();
