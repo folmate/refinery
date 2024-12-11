@@ -33,6 +33,7 @@ include(
 		"store-reasoning-scope",
 		"store-reasoning-smt",
 		"versions",
+		"emf",
 )
 
 for (project in rootProject.children) {
