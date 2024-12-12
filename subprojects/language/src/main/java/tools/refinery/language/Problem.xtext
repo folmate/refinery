@@ -205,12 +205,20 @@ CastExpr returns Expr:
 	CastExprBody ({CastExpr.body=current} "as" targetType=[Relation|QualifiedName])?;
 
 CastExprBody returns Expr:
-	Atom | VariableOrNodeExpr | Constant | "(" Expr ")";
+	DiscreteEventExpr | Atom | VariableOrNodeExpr | Constant | "(" Expr ")" ;
 
 Atom:
 	relation=[Relation|QualifiedName]
 	transitiveClosure?=TRANSITIVE_CLOSURE?
 	"(" (arguments+=Expr ("," arguments+=Expr)*)? ")";
+
+DiscreteEventExpr:
+	discreteEvent=[DiscreteEvent]
+	"(" (arguments+=Expr ("," arguments+=Expr)*)? ")"
+	criteria=EventCriteria "{"
+	tokenSet+=[EventToken] ("," tokenSet+=[EventToken])* "}";
+enum EventCriteria:
+	IN="in"| NIN="not";
 
 VariableOrNodeExpr:
 	variableOrNode=[VariableOrNode|QualifiedName];
@@ -341,10 +349,10 @@ EventToken:
 	key=ID;
 
 EventDefinition:
-	BinaryEvent ;
-	
-BinaryEvent:
-	"binary"
+	DiscreteEvent ;
+
+DiscreteEvent:
+	"event"
 	tokens+=EventToken
 	(tokens+=EventToken)?
 	predicate=PredicateDefinition;

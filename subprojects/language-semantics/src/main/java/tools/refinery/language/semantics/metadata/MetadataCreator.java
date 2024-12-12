@@ -142,7 +142,7 @@ public class MetadataCreator {
 		var name = eventRelation.name;
 		var arity = eventRelation.arity();
 		//TODO EVENT fixme
-		var parameterNames = getParameterNames(((BinaryEvent) eventDefinition).getPredicate());
+		var parameterNames = getParameterNames(((DiscreteEvent) eventDefinition).getPredicate());
 		var detail = getEventDetail(eventDefinition, eventRelation);
 		return new RelationMetadata(name, name, arity, parameterNames, detail);
 	}

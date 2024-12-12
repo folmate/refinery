@@ -89,6 +89,10 @@
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/SHADOW"/>
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/PARTIAL"/>
     </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="problem.ecore#//EventCriteria">
+      <genEnumLiterals ecoreEnumLiteral="problem.ecore#//EventCriteria/IN"/>
+      <genEnumLiterals ecoreEnumLiteral="problem.ecore#//EventCriteria/NIN"/>
+    </genEnums>
     <genClasses ecoreClass="problem.ecore#//Problem">
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//Problem/nodes"/>
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//Problem/statements"/>
@@ -265,9 +269,15 @@
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/probability"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/key"/>
     </genClasses>
-    <genClasses ecoreClass="problem.ecore#//BinaryEvent">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//BinaryEvent/tokens"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//BinaryEvent/predicate"/>
+    <genClasses ecoreClass="problem.ecore#//DiscreteEvent">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/tokens"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/predicate"/>
+    </genClasses>
+    <genClasses ecoreClass="problem.ecore#//DiscreteEventExpr">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/discreteEvent"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/tokenSet"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//DiscreteEventExpr/criteria"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/arguments"/>
     </genClasses>
   </genPackages>
 </genmodel:GenModel>

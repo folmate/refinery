@@ -307,15 +307,15 @@ public class ModelInitializer {
 	}
 
 	private void collectEventDefinitionSymbol(EventDefinition eventDefinition){
-		if(eventDefinition instanceof BinaryEvent binaryEvent){
+		if(eventDefinition instanceof DiscreteEvent binaryEvent){
 			collectBinaryEventDefinitionSymbol(binaryEvent);
 		}
 	}
 	//TODO EVENT
-	private void collectBinaryEventDefinitionSymbol(BinaryEvent binaryEvent){
+	private void collectBinaryEventDefinitionSymbol(DiscreteEvent binaryEvent){
 		var name = binaryEvent.getPredicate().getName();
 
-		binaryEvent.getPredicate().setName("%s#Select".formatted(name));
+		//binaryEvent.getPredicate().setName("%s".formatted(name));
 		collectPredicateDefinitionSymbol(binaryEvent.getPredicate());
 
 		var partialRelation = getPartialRelation(binaryEvent.getPredicate());
@@ -622,12 +622,12 @@ public class ModelInitializer {
 	}
 
 	private void collectEventDefinition(EventDefinition eventDefinition, ModelStoreBuilder storeBuilder){
-		if(eventDefinition instanceof BinaryEvent binaryEvent){
+		if(eventDefinition instanceof DiscreteEvent binaryEvent){
 			collectBinaryEventDefinition(binaryEvent, storeBuilder);
 		}
 	}
 
-	private void collectBinaryEventDefinition(BinaryEvent binaryEvent, ModelStoreBuilder storeBuilder){
+	private void collectBinaryEventDefinition(DiscreteEvent binaryEvent, ModelStoreBuilder storeBuilder){
 		collectPredicateDefinitionTraced(binaryEvent.getPredicate(), storeBuilder);
 
 		var partialRelation = getPartialRelation(binaryEvent.getPredicate());

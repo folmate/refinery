@@ -41,6 +41,9 @@ public class ProblemScopeProvider extends AbstractProblemScopeProvider {
 		if (reference == ProblemPackage.Literals.REFERENCE_DECLARATION__OPPOSITE) {
 			return getOppositeScope(context);
 		}
+		if (reference == ProblemPackage.Literals.DISCRETE_EVENT_EXPR__DISCRETE_EVENT) {
+			return getDiscreteEventScope(context);
+		}
 		return scope;
 	}
 
@@ -98,5 +101,17 @@ public class ProblemScopeProvider extends AbstractProblemScopeProvider {
 		}
 		var referenceDeclarations = classDeclaration.getFeatureDeclarations();
 		return Scopes.scopeFor(referenceDeclarations);
+	}
+	protected IScope getDiscreteEventScope(EObject context) {
+		var problem = EcoreUtil2.getContainerOfType(context, Problem.class);
+		if (problem == null) {
+			return IScope.NULLSCOPE;
+		}
+		var discreteEvents = problem.getStatements().stream()
+				.filter(statement -> statement instanceof DiscreteEvent)
+				.map(statement -> (DiscreteEvent) statement)
+				.toList();
+		System.out.println("Event scope: "+discreteEvents.size());
+		return Scopes.scopeFor(discreteEvents);
 	}
 }

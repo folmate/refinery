@@ -15,6 +15,7 @@ import org.eclipse.xtext.naming.DefaultDeclarativeQualifiedNameProvider;
 import org.eclipse.xtext.naming.IQualifiedNameConverter;
 import org.eclipse.xtext.naming.QualifiedName;
 import org.eclipse.xtext.util.Strings;
+import tools.refinery.language.model.problem.DiscreteEvent;
 import tools.refinery.language.model.problem.Problem;
 import tools.refinery.language.scoping.imports.ImportAdapterProvider;
 import tools.refinery.language.utils.ProblemUtil;
@@ -70,6 +71,9 @@ public class ProblemQualifiedNameProvider extends DefaultDeclarativeQualifiedNam
 	@Override
 	protected QualifiedName computeFullyQualifiedNameFromNameAttribute(EObject obj) {
 		String name = getResolver().apply(obj);
+		if(obj instanceof DiscreteEvent event){
+			name = getResolver().apply(event.getPredicate());
+		}
 		if (Strings.isEmpty(name)) {
 			return null;
 		}
@@ -77,8 +81,9 @@ public class ProblemQualifiedNameProvider extends DefaultDeclarativeQualifiedNam
 		while (obj.eContainer() != null) {
 			obj = obj.eContainer();
 			QualifiedName parentsQualifiedName = getFullyQualifiedName(obj);
-			if (parentsQualifiedName != null)
+			if (parentsQualifiedName != null) {
 				return parentsQualifiedName.append(qualifiedNameFromConverter);
+			}
 		}
 		return qualifiedNameFromConverter;
 	}
