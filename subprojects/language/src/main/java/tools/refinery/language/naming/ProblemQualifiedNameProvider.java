@@ -27,10 +27,10 @@ public class ProblemQualifiedNameProvider extends DefaultDeclarativeQualifiedNam
 
 	@Inject
 	private ImportAdapterProvider importAdapterProvider;
-	/*protected QualifiedName qualifiedName(DiscreteEvent event){
+	protected QualifiedName qualifiedName(DiscreteEvent event){
 		var name = event.getPredicate().getName();
 		return qualifiedNameConverter.toQualifiedName(name);
-	}*/
+	}
 
 	protected QualifiedName qualifiedName(Problem problem) {
 		var qualifiedNameString = problem.getName();
