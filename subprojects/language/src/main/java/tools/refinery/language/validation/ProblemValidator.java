@@ -61,6 +61,8 @@ public class ProblemValidator extends AbstractProblemValidator {
 	public static final String TYPE_ERROR = ISSUE_PREFIX + "TYPE_ERROR";
 	public static final String UNUSED_PARTIAL_RELATION = ISSUE_PREFIX + "UNUSED_PARTIAL_RELATION";
 	public static final String UNUSED_PARAMETER = ISSUE_PREFIX + "UNUSED_PARAMETER";
+	public static final String INVALID_EVENT = ISSUE_PREFIX + "INVALID_EVENT";
+	public static final String UNUSUAL_EVENT = ISSUE_PREFIX + "UNUSUAL_EVENT";
 
 	@Inject
 	private ReferenceCounter referenceCounter;
@@ -876,6 +878,38 @@ public class ProblemValidator extends AbstractProblemValidator {
 					diagnostic.getIssueData());
 			default -> throw new IllegalStateException("Unknown severity %s of %s"
 					.formatted(diagnostic.getSeverity(), diagnostic));
+			}
+		}
+	}
+	@Check
+	private boolean checkAtomEvent(Atom atom){
+		var relation = atom.getRelation();
+		var isEvent = atom.getEvent()!=null;
+		if(isEvent){
+			if(!(relation instanceof DiscreteEvent)){
+				var message = "Event may only appear for basic event predicates.";
+				acceptError(message, atom, ProblemPackage.Literals.ATOM__EVENT, 0, INVALID_EVENT);
+				return true;
+			}
+		} else {
+			if(relation instanceof DiscreteEvent){
+				var message = "Event may only appear for basic event predicates.";
+				acceptWarning(message, atom, ProblemPackage.Literals.ATOM__EVENT,0, UNUSUAL_EVENT);
+				return true;
+			}
+		}
+		return false;
+	}
+	@Check
+	private void checkTokenSet(DiscreteEventExpr eventExpression){
+		var atom = (Atom) eventExpression.eContainer();
+		if (atom.getRelation() instanceof DiscreteEvent event){
+			var goodTokens = event.getTokens();
+			for(EventToken token : eventExpression.getTokenSet()){
+				if(!goodTokens.contains(token)){
+					var message = "Token is not defined in event %s ".formatted(event.getPredicate().getName());
+					acceptError(message, token, ProblemPackage.Literals.DISCRETE_EVENT_EXPR__TOKEN_SET, 0, INVALID_EVENT);
+				}
 			}
 		}
 	}

@@ -131,6 +131,7 @@
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//Atom/transitiveClosure"/>
       <genFeatures children="true" createChild="true" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//Atom/arguments"/>
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//Atom/relation"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//Atom/event"/>
     </genClasses>
     <genClasses ecoreClass="problem.ecore#//ImplicitVariable"/>
     <genClasses ecoreClass="problem.ecore#//ExistentialQuantifier">
@@ -267,17 +268,14 @@
     <genClasses ecoreClass="problem.ecore#//EventDefinition"/>
     <genClasses ecoreClass="problem.ecore#//EventToken">
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/probability"/>
-      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/key"/>
     </genClasses>
     <genClasses ecoreClass="problem.ecore#//DiscreteEvent">
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/tokens"/>
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/predicate"/>
     </genClasses>
     <genClasses ecoreClass="problem.ecore#//DiscreteEventExpr">
-      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/discreteEvent"/>
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/tokenSet"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//DiscreteEventExpr/criteria"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/arguments"/>
     </genClasses>
   </genPackages>
 </genmodel:GenModel>

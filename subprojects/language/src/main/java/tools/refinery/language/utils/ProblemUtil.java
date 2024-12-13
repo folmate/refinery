@@ -197,6 +197,7 @@ public final class ProblemUtil {
 			case DatatypeDeclaration ignoredDatatypeDeclaration -> 1;
 			case ReferenceDeclaration ignoredReferenceDeclaration -> 2;
 			case PredicateDefinition predicateDefinition -> predicateDefinition.getParameters().size();
+			case DiscreteEvent discreteEvent -> discreteEvent.getPredicate().getParameters().size();
 			default -> throw new IllegalArgumentException("Unknown Relation: " + relation);
 		};
 	}

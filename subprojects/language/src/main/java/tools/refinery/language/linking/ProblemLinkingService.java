@@ -20,6 +20,8 @@ import org.eclipse.xtext.naming.QualifiedName;
 import org.eclipse.xtext.nodemodel.INode;
 import org.eclipse.xtext.resource.IEObjectDescription;
 import org.eclipse.xtext.scoping.IScope;
+import tools.refinery.language.model.problem.Atom;
+import tools.refinery.language.model.problem.ProblemPackage;
 
 import java.util.*;
 
@@ -36,6 +38,7 @@ public class ProblemLinkingService extends DefaultLinkingService {
 			return List.of();
 		}
 		final String crossRefString = getCrossRefNodeAsString(node);
+
 		if (crossRefString == null || crossRefString.isEmpty()) {
 			return List.of();
 		}

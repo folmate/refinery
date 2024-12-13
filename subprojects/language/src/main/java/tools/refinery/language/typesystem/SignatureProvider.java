@@ -64,6 +64,18 @@ public class SignatureProvider {
 				}
 				yield List.copyOf(exprTypes);
 			}
+			case DiscreteEvent discreteEvent -> {
+				var parameters = discreteEvent.getPredicate().getParameters();
+				var exprTypes = new ArrayList<FixedType>(parameters.size());
+				for (var parameter : parameters) {
+					if (parameter.getParameterType() instanceof DatatypeDeclaration datatypeDeclaration) {
+						exprTypes.add(getDataType(datatypeDeclaration));
+					} else {
+						exprTypes.add(ExprType.NODE);
+					}
+				}
+				yield List.copyOf(exprTypes);
+			}
 			default -> throw new IllegalArgumentException("Unknown Relation: " + relation);
 		};
 	}

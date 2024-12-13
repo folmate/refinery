@@ -205,16 +205,15 @@ CastExpr returns Expr:
 	CastExprBody ({CastExpr.body=current} "as" targetType=[Relation|QualifiedName])?;
 
 CastExprBody returns Expr:
-	DiscreteEventExpr | Atom | VariableOrNodeExpr | Constant | "(" Expr ")" ;
+	Atom | VariableOrNodeExpr | Constant | "(" Expr ")" ;
 
 Atom:
 	relation=[Relation|QualifiedName]
 	transitiveClosure?=TRANSITIVE_CLOSURE?
-	"(" (arguments+=Expr ("," arguments+=Expr)*)? ")";
+	"(" (arguments+=Expr ("," arguments+=Expr)*)? ")"
+	(event=DiscreteEventExpr)?;
 
 DiscreteEventExpr:
-	discreteEvent=[DiscreteEvent]
-	"(" (arguments+=Expr ("," arguments+=Expr)*)? ")"
 	criteria=EventCriteria "{"
 	tokenSet+=[EventToken] ("," tokenSet+=[EventToken])* "}";
 enum EventCriteria:
@@ -346,7 +345,7 @@ terminal QUOTED_ID:
 EventToken:
 	probability=Real
 	"::"
-	key=ID;
+	name=ID;
 
 EventDefinition:
 	DiscreteEvent ;

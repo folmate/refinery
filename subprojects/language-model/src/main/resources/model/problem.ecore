@@ -52,6 +52,8 @@
     <eStructuralFeatures xsi:type="ecore:EReference" name="arguments" upperBound="-1"
         eType="#//Expr" containment="true"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="relation" eType="#//Relation"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="event" eType="#//DiscreteEventExpr"
+        containment="true"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="ImplicitVariable" eSuperTypes="#//Variable"/>
   <eClassifiers xsi:type="ecore:EClass" name="ExistentialQuantifier" abstract="true"
@@ -293,27 +295,21 @@
     <eLiterals name="PARTIAL" value="3"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="EventDefinition" abstract="true" eSuperTypes="#//Statement"/>
-  <eClassifiers xsi:type="ecore:EClass" name="EventToken">
+  <eClassifiers xsi:type="ecore:EClass" name="EventToken" eSuperTypes="#//NamedElement">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="probability" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble"
         defaultValueLiteral="-1"/>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="key" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"
-        defaultValueLiteral=""/>
   </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="DiscreteEvent" eSuperTypes="#//EventDefinition">
+  <eClassifiers xsi:type="ecore:EClass" name="DiscreteEvent" eSuperTypes="#//EventDefinition #//Relation">
     <eStructuralFeatures xsi:type="ecore:EReference" name="tokens" lowerBound="1"
         upperBound="-1" eType="#//EventToken" containment="true"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="predicate" lowerBound="1"
         eType="#//PredicateDefinition" containment="true"/>
   </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="DiscreteEventExpr" eSuperTypes="#//Expr">
-    <eStructuralFeatures xsi:type="ecore:EReference" name="discreteEvent" lowerBound="1"
-        eType="#//DiscreteEvent"/>
+  <eClassifiers xsi:type="ecore:EClass" name="DiscreteEventExpr">
     <eStructuralFeatures xsi:type="ecore:EReference" name="tokenSet" upperBound="-1"
         eType="#//EventToken"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="criteria" lowerBound="1"
         eType="#//EventCriteria" defaultValueLiteral="IN"/>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="arguments" upperBound="-1"
-        eType="#//Expr" containment="true"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="EventCriteria">
     <eLiterals name="IN"/>

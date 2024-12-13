@@ -27,6 +27,10 @@ public class ProblemQualifiedNameProvider extends DefaultDeclarativeQualifiedNam
 
 	@Inject
 	private ImportAdapterProvider importAdapterProvider;
+	/*protected QualifiedName qualifiedName(DiscreteEvent event){
+		var name = event.getPredicate().getName();
+		return qualifiedNameConverter.toQualifiedName(name);
+	}*/
 
 	protected QualifiedName qualifiedName(Problem problem) {
 		var qualifiedNameString = problem.getName();
@@ -71,9 +75,6 @@ public class ProblemQualifiedNameProvider extends DefaultDeclarativeQualifiedNam
 	@Override
 	protected QualifiedName computeFullyQualifiedNameFromNameAttribute(EObject obj) {
 		String name = getResolver().apply(obj);
-		if(obj instanceof DiscreteEvent event){
-			name = getResolver().apply(event.getPredicate());
-		}
 		if (Strings.isEmpty(name)) {
 			return null;
 		}

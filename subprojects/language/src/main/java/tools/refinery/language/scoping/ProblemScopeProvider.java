@@ -9,12 +9,14 @@
  */
 package tools.refinery.language.scoping;
 
+import com.google.inject.Inject;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.xtext.EcoreUtil2;
 import org.eclipse.xtext.scoping.IScope;
 import org.eclipse.xtext.scoping.Scopes;
 import tools.refinery.language.model.problem.*;
+import tools.refinery.language.naming.ProblemQualifiedNameProvider;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -27,6 +29,9 @@ import java.util.LinkedHashSet;
  * on how and when to use it.
  */
 public class ProblemScopeProvider extends AbstractProblemScopeProvider {
+	@Inject
+	private ProblemQualifiedNameProvider nameProvider;
+
 	@Override
 	public IScope getScope(EObject context, EReference reference) {
 		var scope = super.getScope(context, reference);
@@ -41,8 +46,11 @@ public class ProblemScopeProvider extends AbstractProblemScopeProvider {
 		if (reference == ProblemPackage.Literals.REFERENCE_DECLARATION__OPPOSITE) {
 			return getOppositeScope(context);
 		}
-		if (reference == ProblemPackage.Literals.DISCRETE_EVENT_EXPR__DISCRETE_EVENT) {
-			return getDiscreteEventScope(context);
+		if ((context instanceof Atom atom) && reference == ProblemPackage.Literals.ATOM__RELATION) {
+			var isEvent = atom.getEvent()!=null;
+			if(isEvent){
+				return getDiscreteEventScope(atom);
+			}
 		}
 		return scope;
 	}
@@ -102,8 +110,8 @@ public class ProblemScopeProvider extends AbstractProblemScopeProvider {
 		var referenceDeclarations = classDeclaration.getFeatureDeclarations();
 		return Scopes.scopeFor(referenceDeclarations);
 	}
-	protected IScope getDiscreteEventScope(EObject context) {
-		var problem = EcoreUtil2.getContainerOfType(context, Problem.class);
+	protected IScope getDiscreteEventScope(Atom atom) {
+		var problem = EcoreUtil2.getContainerOfType(atom, Problem.class);
 		if (problem == null) {
 			return IScope.NULLSCOPE;
 		}
@@ -111,7 +119,6 @@ public class ProblemScopeProvider extends AbstractProblemScopeProvider {
 				.filter(statement -> statement instanceof DiscreteEvent)
 				.map(statement -> (DiscreteEvent) statement)
 				.toList();
-		System.out.println("Event scope: "+discreteEvents.size());
-		return Scopes.scopeFor(discreteEvents);
+		return Scopes.scopeFor(discreteEvents, nameProvider::getFullyQualifiedName, IScope.NULLSCOPE);
 	}
 }
