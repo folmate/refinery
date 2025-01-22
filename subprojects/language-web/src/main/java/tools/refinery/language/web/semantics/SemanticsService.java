@@ -48,7 +48,7 @@ public class SemanticsService extends AbstractCachedService<SemanticsResult> {
 	private final AtomicBoolean warmedUp = new AtomicBoolean(false);
 
 	public SemanticsService() {
-		timeoutMs = getTimeout("REFINERY_SEMANTICS_TIMEOUT_MS").orElse(1000L);
+		timeoutMs = getTimeout("REFINERY_SEMANTICS_TIMEOUT_MS").orElse(5000L);
 		warmupTimeoutMs = getTimeout("REFINERY_SEMANTICS_WARMUP_TIMEOUT_MS").orElse(timeoutMs * 2);
 	}
 

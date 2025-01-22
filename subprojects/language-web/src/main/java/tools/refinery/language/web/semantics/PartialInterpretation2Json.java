@@ -17,7 +17,7 @@ import tools.refinery.store.map.Cursor;
 import tools.refinery.store.model.Model;
 import tools.refinery.store.query.ModelQueryAdapter;
 import tools.refinery.store.reasoning.literal.Concreteness;
-import tools.refinery.store.reasoning.representation.EventRelation;
+import tools.refinery.store.reasoning.representation.event.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.multiobject.MultiObjectTranslator;
 import tools.refinery.store.tuple.Tuple;

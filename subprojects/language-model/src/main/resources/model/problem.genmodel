@@ -88,6 +88,7 @@
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/ERROR"/>
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/SHADOW"/>
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/PARTIAL"/>
+      <genEnumLiterals ecoreEnumLiteral="problem.ecore#//PredicateKind/EVENT"/>
     </genEnums>
     <genEnums typeSafeEnumCompatible="false" ecoreEnum="problem.ecore#//EventCriteria">
       <genEnumLiterals ecoreEnumLiteral="problem.ecore#//EventCriteria/IN"/>

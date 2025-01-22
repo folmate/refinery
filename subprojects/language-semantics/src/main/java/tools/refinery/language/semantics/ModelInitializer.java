@@ -12,6 +12,7 @@ import tools.refinery.language.scoping.imports.ImportAdapterProvider;
 import tools.refinery.language.scoping.imports.ImportCollector;
 import tools.refinery.language.semantics.internal.MutableRelationCollector;
 import tools.refinery.language.semantics.internal.MutableSeed;
+import tools.refinery.language.semantics.internal.query.EventCompiler;
 import tools.refinery.language.semantics.internal.query.QueryCompiler;
 import tools.refinery.language.semantics.internal.query.RuleCompiler;
 import tools.refinery.language.utils.BuiltinSymbols;
@@ -28,8 +29,9 @@ import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.model.ModelStoreBuilder;
 import tools.refinery.store.reasoning.ReasoningAdapter;
 import tools.refinery.store.reasoning.literal.ConcretenessSpecification;
-import tools.refinery.store.reasoning.representation.EventRelation;
+import tools.refinery.store.reasoning.representation.event.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
+import tools.refinery.store.reasoning.representation.event.DiscreteEventRelation;
 import tools.refinery.store.reasoning.scope.ScopePropagator;
 import tools.refinery.store.reasoning.seed.ModelSeed;
 import tools.refinery.store.reasoning.seed.Seed;
@@ -71,10 +73,13 @@ public class ModelInitializer {
 	private MutableRelationCollector mutableRelationCollector;
 
 	@Inject
-	private QueryCompiler queryCompiler;
+	//private QueryCompiler queryCompiler;
 
 	@Inject
 	private RuleCompiler ruleCompiler;
+
+	@Inject
+	private EventCompiler eventCompiler;
 
 	private boolean keepNonExistingObjects;
 
@@ -124,6 +129,7 @@ public class ModelInitializer {
 		mutableRelationCollector.collectMutableRelations(importedProblems);
 		problemTrace.setProblem(problem);
 		queryCompiler.setProblemTrace(problemTrace);
+		eventCompiler.setProblemTrace(problemTrace);
 		ruleCompiler.setQueryCompiler(queryCompiler);
 		try {
 			builtinSymbols = importAdapterProvider.getBuiltinSymbols(problem);
@@ -167,7 +173,11 @@ public class ModelInitializer {
 					.putAll(countSeed));
 			modelSeed = modelSeedBuilder.build();
 		} catch (TranslationException e) {
+			e.printStackTrace();
 			throw problemTrace.wrapException(e);
+		} catch (Exception e){
+			e.printStackTrace();
+			throw e;
 		}
 	}
 
@@ -319,7 +329,11 @@ public class ModelInitializer {
 		collectPredicateDefinitionSymbol(binaryEvent.getPredicate());
 
 		var partialRelation = getPartialRelation(binaryEvent.getPredicate());
-		var eventRelation = new EventRelation(name, partialRelation);
+		var outcomes = new HashMap<String,Double>();
+		for(EventToken token : binaryEvent.getTokens()){
+			outcomes.put(token.getName(), token.getProbability());
+		}
+		var eventRelation = new DiscreteEventRelation(name, partialRelation, outcomes);
 		problemTrace.putEvent(binaryEvent, eventRelation);
 		eventDefinitionEventRelationMap.put(binaryEvent, eventRelation);
 
@@ -329,6 +343,8 @@ public class ModelInitializer {
 		int arity = predicateDefinition.getParameters().size();
 		if (predicateDefinition.getKind() == PredicateKind.ERROR) {
 			collectPartialRelation(predicateDefinition, arity, TruthValue.FALSE, TruthValue.FALSE);
+		} else if(predicateDefinition.getKind() == PredicateKind.EVENT) {
+			collectEventRelation(predicateDefinition, arity);
 		} else {
 			collectPartialRelation(predicateDefinition, arity, null, TruthValue.UNKNOWN);
 		}
@@ -336,6 +352,12 @@ public class ModelInitializer {
 		if (computedPredicate != null) {
 			collectPartialRelation(computedPredicate, arity, null, TruthValue.UNKNOWN);
 		}
+	}
+
+	// TODO EVENT
+	private void collectEventRelation(Relation relation, int arity){
+		System.out.println("Processing event "+relation.getName());
+		System.out.println("\t"+((PredicateDefinition) relation).getComputedValue());
 	}
 
 	private void putRelationInfo(Relation relation, RelationInfo info) {
@@ -669,11 +691,16 @@ public class ModelInitializer {
 			collectBasePredicateDefinition(predicateDefinition, storeBuilder);
 		} else if (predicateDefinition.getKind() == PredicateKind.SHADOW) {
 			collectShadowPredicateDefinition(predicateDefinition, storeBuilder);
+		} else if (predicateDefinition.getKind() == PredicateKind.EVENT) {
+			//TODO EVENT collect event predicate
 		} else {
 			collectComputedPredicateDefinition(predicateDefinition, storeBuilder);
 		}
 	}
+	private void collectEventPredicateDefinition(PredicateDefinition predicateDefinition,
+												 ModelStoreBuilder storeBuilder){
 
+	}
 	private void collectComputedPredicateDefinition(PredicateDefinition predicateDefinition,
 													ModelStoreBuilder storeBuilder) {
 		var partialRelation = getPartialRelation(predicateDefinition);

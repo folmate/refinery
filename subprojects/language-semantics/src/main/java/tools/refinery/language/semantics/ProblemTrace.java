@@ -8,9 +8,10 @@ package tools.refinery.language.semantics;
 import org.eclipse.collections.api.map.primitive.ObjectIntMap;
 import org.eclipse.xtext.naming.QualifiedName;
 import tools.refinery.language.model.problem.*;
+import tools.refinery.probability.terms.EventHandle;
 import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
-import tools.refinery.store.reasoning.representation.EventRelation;
+import tools.refinery.store.reasoning.representation.event.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.TranslationException;
 import tools.refinery.store.reasoning.translator.metamodel.Metamodel;
@@ -48,5 +49,5 @@ public interface ProblemTrace {
 
 	PartialRelation getPartialRelation(String qualifiedName);
 
-	Map<EventDefinition, EventRelation> getEventDefinitionTrace();
+	Map<EventDefinition, EventRelation<? extends EventHandle>> getEventDefinitionTrace();
 }

@@ -22,7 +22,7 @@ import tools.refinery.language.utils.ProblemUtil;
 import tools.refinery.store.model.Model;
 import tools.refinery.store.reasoning.ReasoningAdapter;
 import tools.refinery.store.reasoning.literal.Concreteness;
-import tools.refinery.store.reasoning.representation.EventRelation;
+import tools.refinery.store.reasoning.representation.event.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 
 import java.util.ArrayList;

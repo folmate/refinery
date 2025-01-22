@@ -293,6 +293,7 @@
     <eLiterals name="ERROR" value="1"/>
     <eLiterals name="SHADOW" value="2"/>
     <eLiterals name="PARTIAL" value="3"/>
+    <eLiterals name="EVENT" value="4"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="EventDefinition" abstract="true" eSuperTypes="#//Statement"/>
   <eClassifiers xsi:type="ecore:EClass" name="EventToken" eSuperTypes="#//NamedElement">

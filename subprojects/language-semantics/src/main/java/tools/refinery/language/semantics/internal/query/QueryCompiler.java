@@ -32,12 +32,12 @@ import java.util.*;
 
 public class QueryCompiler {
 	@Inject
-	private SemanticsUtils semanticsUtils;
+	protected SemanticsUtils semanticsUtils;
 
 	@Inject
 	private ReferenceCounter referenceCounter;
 
-	private ProblemTrace problemTrace;
+	protected ProblemTrace problemTrace;
 
 	public void setProblemTrace(ProblemTrace problemTrace) {
 		this.problemTrace = problemTrace;
@@ -116,7 +116,7 @@ public class QueryCompiler {
 		}
 	}
 
-	private void toLiterals(
+	void toLiterals(
 			Expr expr, Map<tools.refinery.language.model.problem.Variable, ? extends Variable> localScope,
 			List<Literal> literals) {
 		var extractedOuter = ExtractedModalExpr.of(expr);
@@ -243,7 +243,7 @@ public class QueryCompiler {
 		return new ArgumentList(arguments, filteredArguments, needsQuantification);
 	}
 
-	private boolean isEffectivelySingleton(tools.refinery.language.model.problem.Variable variable,
+	protected boolean isEffectivelySingleton(tools.refinery.language.model.problem.Variable variable,
 										   Map<EObject, Integer> referenceCounts) {
 		if (!(variable instanceof ImplicitVariable)) {
 			// Parameter variables are never effectively singleton.

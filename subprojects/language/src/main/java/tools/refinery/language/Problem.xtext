@@ -63,11 +63,14 @@ ReferenceMultiplicity returns Multiplicity:
 enum ErrorPredicateKind returns PredicateKind:
 	ERROR="error";
 
+enum EventPredicateKind returns PredicateKind:
+	EVENT="event";
+
 enum PredicateKind:
-	ERROR="error" | PARTIAL="partial" | SHADOW="shadow";
+	ERROR="error" | PARTIAL="partial" | SHADOW="shadow" | EVENT="event";
 
 PredicateDefinition:
-	(kind=ErrorPredicateKind | kind=PredicateKind? "pred")
+	(kind=ErrorPredicateKind | kind=EventPredicateKind | kind=PredicateKind? "pred")
 	name=Identifier
 	"(" (parameters+=Parameter ("," parameters+=Parameter)*)? ")"
 	("subsets" superSets+=[ReferenceDeclaration|QualifiedName]
@@ -343,17 +346,17 @@ terminal QUOTED_ID:
 	"'" ( '\\' . /* 'b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\' */ | !('\\'|"'") )* "'";
 
 EventToken:
-	probability=Real
-	"::"
+	( probability=Real
+	"::" )*
 	name=ID;
 
 EventDefinition:
 	DiscreteEvent ;
 
 DiscreteEvent:
-	"event"
+	"discrete"
 	tokens+=EventToken
-	(tokens+=EventToken)?
+	(tokens+=EventToken)*
 	predicate=PredicateDefinition;
 
 

@@ -1,16 +1,17 @@
-package tools.refinery.store.reasoning.representation;
+package tools.refinery.store.reasoning.representation.event;
 
 import tools.refinery.logic.dnf.FunctionalQuery;
 import tools.refinery.logic.term.Parameter;
 import tools.refinery.probability.terms.EventHandle;
+import tools.refinery.store.reasoning.representation.PartialRelation;
 
 import java.util.List;
 import java.util.function.Function;
 
-public class EventRelation {
+public class EventRelation<T extends EventHandle> {
 	public final String name;
 	public final PartialRelation partialRelation;
-	private FunctionalQuery<EventHandle> query;
+	private FunctionalQuery<T> query;
 
 	public EventRelation(String name, PartialRelation partialRelation){
 		this.name = name;
@@ -36,16 +37,17 @@ public class EventRelation {
 		return partialRelation.arity();
 	}
 
-	public void query(FunctionalQuery<EventHandle> query) {
+	public void query(FunctionalQuery<T> query) {
 		if(this.query!=null){
 			throw new IllegalStateException("Query is already set.");
 		}
 		this.query = query;
 	}
 
-	public FunctionalQuery<EventHandle> query() {
+	public FunctionalQuery<T> query() {
 		return query;
 	}
+
 	public List<String> parameterNames(Function<Parameter,String> mapper){
 		return partialRelation.getParameters().stream().map(mapper).toList();
 	}

@@ -5,99 +5,34 @@
  */
 
 export default `% Metamodel
+abstract class Object.
+class Component extends Object.
+class No extends Object.
 
-abstract class CompositeElement {
-    contains Region[] regions
-}
+pred concrete(node) <-> ::builtin::exists(node), ::builtin::equals(node,node).
 
-class Region {
-    contains Vertex[] vertices opposite region
-}
+discrete 0.9::Operational pred isOperational(Component c)<-> concrete(c), Component(c).
 
-abstract class Vertex {
-    container Region region opposite vertices
-    contains Transition[] outgoingTransition opposite source
-    Transition[] incomingTransition opposite target
-}
+/*// Should produce error as pred cannot? contain to event.
+pred compound1(Component c) <->
+    isOperational(c) not { Operational }.
+*/
 
-class Transition {
-    container Vertex source opposite outgoingTransition
-    Vertex[1] target opposite incomingTransition
-}
+event pred compound(Component c)<->
+    isOperational(c) not { Operational }.
 
-abstract class Pseudostate extends Vertex.
+pred bar(Component obj)<->Component(obj), concrete(obj).
 
-abstract class RegularState extends Vertex.
+Component(a).
+Component(b).
+Component(c).
+%Component(d).
 
-class Entry extends Pseudostate.
+No(g).
 
-class Exit extends Pseudostate.
-
-class Choice extends Pseudostate.
-
-class FinalState extends RegularState.
-
-class State extends RegularState, CompositeElement.
-
-class Statechart extends CompositeElement.
-
-% Constraints
-
-%% Entry
-
-pred entryInRegion(Region r, Entry e) <->
-    vertices(r, e).
-
-error noEntryInRegion(Region r) <->
-    !entryInRegion(r, _).
-
-error multipleEntryInRegion(Region r) <->
-    entryInRegion(r, e1),
-    entryInRegion(r, e2),
-    e1 != e2.
-
-error incomingToEntry(Transition t, Entry e) <->
-    target(t, e).
-
-error noOutgoingTransitionFromEntry(Entry e) <->
-    !source(_, e).
-
-error multipleTransitionFromEntry(Entry e, Transition t1, Transition t2) <->
-    outgoingTransition(e, t1),
-    outgoingTransition(e, t2),
-    t1 != t2.
-
-%% Exit
-
-error outgoingFromExit(Transition t, Exit e) <->
-    source(t, e).
-
-%% Final
-
-error outgoingFromFinal(Transition t, FinalState e) <->
-    source(t, e).
-
-%% State vs Region
-
-pred stateInRegion(Region r, State s) <->
-    vertices(r, s).
-
-error noStateInRegion(Region r) <->
-    !stateInRegion(r, _).
-
-%% Choice
-
-error choiceHasNoOutgoing(Choice c) <->
-    !source(_, c).
-
-error choiceHasNoIncoming(Choice c) <->
-    !target(_, c).
-
-% Instance model
-
-Statechart(sct).
+!::builtin::exists(f).
 
 % Scope
 
-scope node = 20..30, Region = 2..*, Choice = 1..*, Statechart += 0.
+scope node = 3..5.
 `;

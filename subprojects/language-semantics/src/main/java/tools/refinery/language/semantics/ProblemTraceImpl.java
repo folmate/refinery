@@ -16,7 +16,7 @@ import org.eclipse.xtext.scoping.IScopeProvider;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
-import tools.refinery.store.reasoning.representation.EventRelation;
+import tools.refinery.store.reasoning.representation.event.EventRelation;
 import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.translator.TranslationException;
 import tools.refinery.store.reasoning.translator.metamodel.Metamodel;
