@@ -110,7 +110,7 @@ public class MetadataCreator {
 
 	public List<RelationMetadata> getRelationsMetadata() {
 		var relationTrace = problemTrace.getRelationTrace();
-		var eventTrace = problemTrace.getEventDefinitionTrace();
+		var eventTrace = problemTrace.getEventTrace();
 		var relations = new ArrayList<RelationMetadata>(relationTrace.size()+ eventTrace.size());
 		for (var entry : relationTrace.entrySet()) {
 			var relation = entry.getKey();
@@ -138,13 +138,19 @@ public class MetadataCreator {
 		return new RelationMetadata(qualifiedNameString, simpleNameString, arity, parameterNames, detail);
 	}
 
-	private RelationMetadata getEventMetadata(EventDefinition eventDefinition, EventRelation eventRelation) {
+	private RelationMetadata getEventMetadata(Relation relation, EventRelation<?> eventRelation) {
 		var name = eventRelation.name;
 		var arity = eventRelation.arity();
 		//TODO EVENT fixme
-		var parameterNames = getParameterNames(((DiscreteEvent) eventDefinition).getPredicate());
-		var detail = getEventDetail(eventDefinition, eventRelation);
-		return new RelationMetadata(name, name, arity, parameterNames, detail);
+		if(relation instanceof EventDefinition eventDefinition){
+			var parameterNames = getParameterNames(eventDefinition.getPredicate());
+			var detail = getEventDetail(eventDefinition, eventRelation);
+			return new RelationMetadata(name, name, arity, parameterNames, detail);
+		} else if (relation instanceof PredicateDefinition predicate && predicate.getKind()==PredicateKind.EVENT){
+			throw new UnsupportedOperationException("Not implemented");
+		}
+		throw new IllegalArgumentException("Failed to process relation as it is neither EventDefinition or event " +
+				"Predicate.");
 	}
 
 	@Nullable
@@ -176,7 +182,7 @@ public class MetadataCreator {
 			default -> throw new TracedException(relation, "Unknown relation");
 		};
 	}
-	private RelationDetail getEventDetail(EventDefinition eventDefinition, EventRelation eventRelation){
+	private RelationDetail getEventDetail(EventDefinition eventDefinition, EventRelation<?> eventRelation){
 		return new RelationDetail.Event();
 	}
 

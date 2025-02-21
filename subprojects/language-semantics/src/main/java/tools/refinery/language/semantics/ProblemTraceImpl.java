@@ -14,6 +14,7 @@ import org.eclipse.xtext.naming.QualifiedName;
 import org.eclipse.xtext.scoping.IScope;
 import org.eclipse.xtext.scoping.IScopeProvider;
 import tools.refinery.language.model.problem.*;
+import tools.refinery.probability.terms.EventHandle;
 import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
 import tools.refinery.store.reasoning.representation.event.EventRelation;
@@ -38,7 +39,8 @@ class ProblemTraceImpl implements ProblemTrace {
 	private final MutableObjectIntMap<Node> mutableNodeTrace = ObjectIntMaps.mutable.empty();
 	private final ObjectIntMap<Node> nodeTrace = mutableNodeTrace.asUnmodifiable();
 	private final Map<Relation, PartialRelation> mutableRelationTrace = new LinkedHashMap<>();
-	private final Map<EventDefinition, EventRelation> eventDefinitionEventRelationMap = new LinkedHashMap<>();
+	private final Map<Relation, EventRelation<? extends EventHandle>> eventTrace = new LinkedHashMap<>();
+
 	private final Map<Relation, PartialRelation> relationTrace =
 			Collections.unmodifiableMap(mutableRelationTrace);
 	private final Map<AnyPartialSymbol, Relation> mutableInverseTrace = new HashMap<>();
@@ -103,7 +105,7 @@ class ProblemTraceImpl implements ProblemTrace {
 		return relationTrace;
 	}
 	void putEvent(EventDefinition event, EventRelation relation){
-		var oldEventDefinition = eventDefinitionEventRelationMap.put(event, relation);
+		var oldEventDefinition = eventTrace.put(event, relation);
 		if (oldEventDefinition != null) {
 			throw new TracedException(event,
 					"EventDefinition already mapped to partial relation: " + oldEventDefinition);
@@ -212,8 +214,8 @@ class ProblemTraceImpl implements ProblemTrace {
 	}
 
 	@Override
-	public Map<EventDefinition, EventRelation> getEventDefinitionTrace() {
-		return eventDefinitionEventRelationMap;
+	public Map<Relation, EventRelation<? extends EventHandle>> getEventTrace() {
+		return eventTrace;
 	}
 
 	private <T> T getElement(IScope scope, QualifiedName qualifiedName, Class<T> type) {

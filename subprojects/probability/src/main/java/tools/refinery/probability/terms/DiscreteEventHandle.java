@@ -5,6 +5,7 @@ import tools.refinery.logic.term.Term;
 
 import java.util.Map;
 
+@Deprecated
 public class DiscreteEventHandle extends EventHandle {
 	private final Map<String, Double> outcomes;
 	public DiscreteEventHandle(Map<String, Double> outcomes) {

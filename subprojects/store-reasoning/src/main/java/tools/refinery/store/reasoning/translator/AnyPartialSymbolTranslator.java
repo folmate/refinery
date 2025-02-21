@@ -9,7 +9,8 @@ import tools.refinery.store.model.ModelStoreBuilder;
 import tools.refinery.store.model.ModelStoreConfiguration;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
 
-public sealed interface AnyPartialSymbolTranslator extends ModelStoreConfiguration permits PartialSymbolTranslator {
+public sealed interface AnyPartialSymbolTranslator extends ModelStoreConfiguration permits PartialSymbolTranslator,
+		DiscreteEventTranslatorV2 {
 	AnyPartialSymbol getPartialSymbol();
 
 	void configure(ModelStoreBuilder storeBuilder);

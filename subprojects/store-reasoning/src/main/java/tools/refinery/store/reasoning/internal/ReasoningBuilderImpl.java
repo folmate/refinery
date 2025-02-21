@@ -29,6 +29,7 @@ import tools.refinery.store.reasoning.refinement.StorageRefiner;
 import tools.refinery.store.reasoning.representation.AnyPartialSymbol;
 import tools.refinery.store.reasoning.translator.AnyPartialSymbolTranslator;
 import tools.refinery.store.reasoning.translator.PartialRelationTranslator;
+import tools.refinery.store.reasoning.translator.DiscreteEventTranslatorV2;
 import tools.refinery.store.representation.AnySymbol;
 import tools.refinery.store.representation.Symbol;
 import tools.refinery.store.statecoding.StateCoderBuilder;
@@ -117,6 +118,8 @@ public class ReasoningBuilderImpl extends AbstractModelAdapterBuilder<ReasoningS
 			translator.configure(storeBuilder);
 			if (translator instanceof PartialRelationTranslator relationConfiguration) {
 				doConfigure(storeBuilder, relationConfiguration);
+			} if(translator instanceof DiscreteEventTranslatorV2 eventConfiguration) {
+				System.out.println("Translator skipped");
 			} else {
 				throw new IllegalArgumentException("Unknown partial symbol translator %s for partial symbol %s"
 						.formatted(translator, translator.getPartialSymbol()));

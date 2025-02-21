@@ -266,13 +266,14 @@
     <genClasses ecoreClass="problem.ecore#//Assertion">
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//Assertion/default"/>
     </genClasses>
-    <genClasses ecoreClass="problem.ecore#//EventDefinition"/>
+    <genClasses ecoreClass="problem.ecore#//EventDefinition">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//EventDefinition/predicate"/>
+    </genClasses>
     <genClasses ecoreClass="problem.ecore#//EventToken">
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute problem.ecore#//EventToken/probability"/>
     </genClasses>
     <genClasses ecoreClass="problem.ecore#//DiscreteEvent">
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/tokens"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEvent/predicate"/>
     </genClasses>
     <genClasses ecoreClass="problem.ecore#//DiscreteEventExpr">
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference problem.ecore#//DiscreteEventExpr/tokenSet"/>

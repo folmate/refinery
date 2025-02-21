@@ -8,6 +8,7 @@ import tools.refinery.store.reasoning.representation.PartialRelation;
 import java.util.List;
 import java.util.function.Function;
 
+@Deprecated
 public class EventRelation<T extends EventHandle> {
 	public final String name;
 	public final PartialRelation partialRelation;

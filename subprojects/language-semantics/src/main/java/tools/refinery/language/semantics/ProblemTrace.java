@@ -49,5 +49,5 @@ public interface ProblemTrace {
 
 	PartialRelation getPartialRelation(String qualifiedName);
 
-	Map<EventDefinition, EventRelation<? extends EventHandle>> getEventDefinitionTrace();
+	Map<Relation, EventRelation<? extends EventHandle>> getEventTrace();
 }

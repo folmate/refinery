@@ -43,7 +43,7 @@ public class PartialInterpretation2Json {
 			json.add(name, tuples);
 			cancellationToken.checkCancelled();
 		}
-		for (var entry : facade.getProblemTrace().getEventDefinitionTrace().entrySet()) {
+		for (var entry : facade.getProblemTrace().getEventTrace().entrySet()) {
 			var eventRelation = entry.getValue();
 			var tuples = getTuplesJson(facade, eventRelation);
 			json.add(eventRelation.name, tuples);

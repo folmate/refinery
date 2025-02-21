@@ -13,6 +13,7 @@ import tools.refinery.store.reasoning.representation.event.DiscreteEventRelation
 
 import static tools.refinery.store.reasoning.literal.PartialLiterals.must;
 
+@Deprecated
 public class BinaryEventTranslator implements ModelStoreConfiguration {
 	private final EventRelation relation;
 	private final RelationalQuery selector;

@@ -20,7 +20,7 @@ RUN echo '[Desktop Entry]\n\
 Version=13.0\n\
 Type=Application\n\
 Terminal=false\n\
-Exec=/opt/idea-IC-*/bin/idea.sh\n\
+Exec=/opt/idea-IC-241.17890.1/bin/idea.sh\n\
 Name=IntelliJ\n\
 Categories=Development\n\
 Icon=/opt/idea-IC-*/bin/idea.png' > /usr/share/applications/intellij.desktop

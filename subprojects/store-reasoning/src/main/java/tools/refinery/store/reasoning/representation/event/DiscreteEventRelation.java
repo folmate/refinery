@@ -6,6 +6,7 @@ import tools.refinery.store.reasoning.representation.PartialRelation;
 
 import java.util.Map;
 
+@Deprecated
 public class DiscreteEventRelation extends EventRelation<DiscreteEventHandle> {
 	private final Map<String, Double> outcomes;
 	public DiscreteEventRelation(String name, PartialRelation partialRelation, Map<String, Double> outcomes) {

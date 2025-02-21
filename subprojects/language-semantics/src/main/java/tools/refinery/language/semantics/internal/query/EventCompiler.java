@@ -1,5 +1,7 @@
 package tools.refinery.language.semantics.internal.query;
 
+import org.eclipse.xtext.util.Pair;
+import org.eclipse.xtext.util.Tuples;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.language.semantics.TracedException;
 import tools.refinery.language.validation.ReferenceCounter;
@@ -17,26 +19,32 @@ import tools.refinery.probability.terms.EventHandle;
 import tools.refinery.probability.terms.EventTerm;
 import tools.refinery.probability.terms.SelectEventTerm;
 import tools.refinery.store.reasoning.representation.event.DiscreteEventRelation;
-import tools.refinery.store.reasoning.representation.event.EventRelation;
 
 import java.util.*;
 
 public class EventCompiler extends QueryCompiler {
-	public FunctionalQuery<EventHandle> buildQuery(String name, PredicateDefinition predicateDefinition){
-		var problemParameters = predicateDefinition.getParameters();
-		int arity = problemParameters.size();
-		var parameters = new NodeVariable[arity];
+	public Pair<FunctionalQuery<EventHandle>,FunctionalQuery<EventHandle>> buildQuery(String name,
+																					  PredicateDefinition predicateDefinition){
+		try{
+			var problemParameters = predicateDefinition.getParameters();
+			int arity = problemParameters.size();
+			var parameters = new NodeVariable[arity];
 
 
-		var unaggregated = buildUnaggregatedQuery(name, predicateDefinition);
+			var unaggregated = buildUnaggregatedQuery(name, predicateDefinition);
 
-		var output = Variable.of(EventHandle.class);
-		var builder = Query.builder(name).output(output).parameters(parameters);
-		builder.clause(
-				unaggregated.call(parameters).toLiteral(Variable.of(EventHandle.class)),
-				output.assign(unaggregated.aggregate(new EventOrAggregator(), parameters))
-		);
-		return builder.build();
+			var output = Variable.of(EventHandle.class);
+			var builder = Query.builder(name).output(output).parameters(parameters);
+			builder.clause(
+					unaggregated.call(parameters).toLiteral(Variable.of(EventHandle.class)),
+					output.assign(unaggregated.aggregate(new EventOrAggregator(), parameters))
+			);
+			return Tuples.create(builder.build(), unaggregated);
+		} catch (TracedException e){
+			e.printStackTrace();
+			throw e;
+		}
+
 	}
 
 	public FunctionalQuery<EventHandle> buildUnaggregatedQuery(String name, PredicateDefinition predicateDefinition){
@@ -109,8 +117,8 @@ public class EventCompiler extends QueryCompiler {
 			//TODO EVENT ignore transitive closure
 
 			var relation = atom.getRelation();
-			var constraint = getPartialRelation(relation);
-			if (problemTrace.getEventDefinitionTrace().get(relation) instanceof DiscreteEventRelation discrete){
+			//var constraint = getPartialRelation(relation);
+			if (problemTrace.getEventTrace().get(relation) instanceof DiscreteEventRelation discrete){
 				var query = discrete.query();
 				var basic = Variable.of(DiscreteEventHandle.class);
 				var out = Variable.of(EventHandle.class);

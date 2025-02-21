@@ -13,7 +13,6 @@ import tools.refinery.language.scoping.imports.ImportCollector;
 import tools.refinery.language.semantics.internal.MutableRelationCollector;
 import tools.refinery.language.semantics.internal.MutableSeed;
 import tools.refinery.language.semantics.internal.query.EventCompiler;
-import tools.refinery.language.semantics.internal.query.QueryCompiler;
 import tools.refinery.language.semantics.internal.query.RuleCompiler;
 import tools.refinery.language.utils.BuiltinSymbols;
 import tools.refinery.language.utils.ProblemUtil;
@@ -49,6 +48,7 @@ import tools.refinery.store.reasoning.translator.predicate.BasePredicateTranslat
 import tools.refinery.store.reasoning.translator.predicate.PredicateTranslator;
 import tools.refinery.store.reasoning.translator.predicate.ShadowPredicateTranslator;
 import tools.refinery.store.reasoning.translator.probability.BinaryEventTranslator;
+import tools.refinery.store.reasoning.translator.probability.CompoundEventTranslator;
 import tools.refinery.store.statecoding.StateCoderBuilder;
 import tools.refinery.store.tuple.Tuple;
 import tools.refinery.store.tuple.Tuple1;
@@ -72,7 +72,7 @@ public class ModelInitializer {
 	@Inject
 	private MutableRelationCollector mutableRelationCollector;
 
-	@Inject
+	//@Inject
 	//private QueryCompiler queryCompiler;
 
 	@Inject
@@ -97,7 +97,7 @@ public class ModelInitializer {
 
 	private final Map<Relation, RelationInfo> relationInfoMap = new LinkedHashMap<>();
 
-	private final Map<EventDefinition, EventRelation> eventDefinitionEventRelationMap = new LinkedHashMap<>();
+	private final Map<EventDefinition, EventRelation<?>> eventDefinitionEventRelationMap = new LinkedHashMap<>();
 
 	private final Map<PartialRelation, RelationInfo> partialRelationInfoMap = new HashMap<>();
 
@@ -318,11 +318,12 @@ public class ModelInitializer {
 
 	private void collectEventDefinitionSymbol(EventDefinition eventDefinition){
 		if(eventDefinition instanceof DiscreteEvent binaryEvent){
-			collectBinaryEventDefinitionSymbol(binaryEvent);
+			collectDiscreteEventDefinitionSymbol(binaryEvent);
 		}
 	}
 	//TODO EVENT
-	private void collectBinaryEventDefinitionSymbol(DiscreteEvent binaryEvent){
+	private void collectDiscreteEventDefinitionSymbol(DiscreteEvent binaryEvent){
+		System.out.println("I am here.");
 		var name = binaryEvent.getPredicate().getName();
 
 		//binaryEvent.getPredicate().setName("%s".formatted(name));
@@ -358,6 +359,8 @@ public class ModelInitializer {
 	private void collectEventRelation(Relation relation, int arity){
 		System.out.println("Processing event "+relation.getName());
 		System.out.println("\t"+((PredicateDefinition) relation).getComputedValue());
+
+		//problemTrace.getEventDefinitionTrace(relation )
 	}
 
 	private void putRelationInfo(Relation relation, RelationInfo info) {
@@ -692,13 +695,16 @@ public class ModelInitializer {
 		} else if (predicateDefinition.getKind() == PredicateKind.SHADOW) {
 			collectShadowPredicateDefinition(predicateDefinition, storeBuilder);
 		} else if (predicateDefinition.getKind() == PredicateKind.EVENT) {
-			//TODO EVENT collect event predicate
+			collectEventPredicateDefinition(predicateDefinition, storeBuilder);
 		} else {
 			collectComputedPredicateDefinition(predicateDefinition, storeBuilder);
 		}
 	}
 	private void collectEventPredicateDefinition(PredicateDefinition predicateDefinition,
 												 ModelStoreBuilder storeBuilder){
+		//TODO EVENT
+		var event = eventCompiler.buildQuery(predicateDefinition.getName(), predicateDefinition);
+		storeBuilder.with(new CompoundEventTranslator(event.getFirst(), event.getSecond()));
 
 	}
 	private void collectComputedPredicateDefinition(PredicateDefinition predicateDefinition,
