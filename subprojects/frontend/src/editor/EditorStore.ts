@@ -21,13 +21,21 @@ import {
   type TransactionSpec,
   type EditorState,
 } from '@codemirror/state';
-import { type Command, EditorView } from '@codemirror/view';
-import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { type Command, EditorView, type Tooltip } from '@codemirror/view';
+import {
+  IReactionDisposer,
+  makeAutoObservable,
+  observable,
+  reaction,
+  runInAction,
+} from 'mobx';
 import { nanoid } from 'nanoid';
 
 import type PWAStore from '../PWAStore';
-import GraphStore from '../graph/GraphStore';
+import GraphStore, { type Visibility } from '../graph/GraphStore';
 import {
+  REFINERY_CONTENT_TYPE,
+  FILE_TYPE_OPTIONS,
   type OpenResult,
   type OpenTextFileResult,
   openTextFile,
@@ -36,6 +44,7 @@ import {
 } from '../utils/fileIO';
 import getLogger from '../utils/getLogger';
 import type XtextClient from '../xtext/XtextClient';
+import type { BackendConfigWithDefaults } from '../xtext/fetchBackendConfig';
 import type { SemanticsModelResult } from '../xtext/xtextServiceResults';
 
 import EditorErrors from './EditorErrors';
@@ -55,23 +64,9 @@ import {
 
 const log = getLogger('editor.EditorStore');
 
-const REFINERY_CONTENT_TYPE = 'text/x-refinery';
-
 const FILE_PICKER_OPTIONS: FilePickerOptions = {
   id: 'problem',
-  types: [
-    {
-      description: 'Refinery files',
-      accept: {
-        [REFINERY_CONTENT_TYPE]: [
-          '.problem',
-          '.PROBLEM',
-          '.refinery',
-          '.REFINERY',
-        ],
-      },
-    },
-  ],
+  ...FILE_TYPE_OPTIONS,
 };
 
 export default class EditorStore {
@@ -123,10 +118,14 @@ export default class EditorStore {
 
   showComputed = false;
 
+  private visibilityMapReaction: IReactionDisposer;
+
   constructor(
     initialValue: string,
+    initialVisibility: Record<string, Visibility> | undefined,
     pwaStore: PWAStore,
-    onUpdate: (text: string) => void,
+    public readonly backendConfig: BackendConfigWithDefaults,
+    onUpdate: (text: string, visibility: Record<string, Visibility>) => void,
   ) {
     this.id = nanoid();
     this.state = createEditorState(initialValue, this);
@@ -139,13 +138,27 @@ export default class EditorStore {
         if (this.disposed) {
           return;
         }
-        this.client = new LazyXtextClient(this, pwaStore, onUpdate);
+        this.client = new LazyXtextClient(
+          this,
+          pwaStore,
+          backendConfig,
+          (text) => {
+            onUpdate(text, this.graph.visibilityObject);
+          },
+        );
         this.client.start();
       });
-    })().catch((error) => {
-      log.error('Failed to load XtextClient', error);
+    })().catch((err: unknown) => {
+      log.error({ err }, 'Failed to load XtextClient');
     });
-    this.graph = new GraphStore(this);
+    const visibilityMap = new Map(Object.entries(initialVisibility ?? {}));
+    this.graph = new GraphStore(this, undefined, visibilityMap);
+    this.visibilityMapReaction = reaction(
+      () => this.graph.visibilityObject,
+      (visibilityMap) => {
+        onUpdate(this.state.sliceDoc(), visibilityMap);
+      },
+    );
     makeAutoObservable<EditorStore, 'client'>(this, {
       id: false,
       state: observable.ref,
@@ -154,6 +167,8 @@ export default class EditorStore {
       searchPanel: false,
       lintPanel: false,
       contentAssist: false,
+      hoverTooltip: false,
+      goToDefinition: false,
       formatText: false,
     });
   }
@@ -187,7 +202,7 @@ export default class EditorStore {
   }
 
   setDarkMode(darkMode: boolean): void {
-    log.debug('Update editor dark mode', darkMode);
+    log.debug('Update editor dark mode: %s', darkMode);
     this.dispatch({
       effects: [
         StateEffect.appendConfig.of([EditorView.darkTheme.of(darkMode)]),
@@ -211,10 +226,8 @@ export default class EditorStore {
         view.update([transaction]);
         if (view.state !== this.state) {
           log.error(
-            'Failed to synchronize editor state - store state:',
-            this.state,
-            'view state:',
-            view.state,
+            { viewState: view.state, storeState: this.state },
+            'Failed to synchronize editor state',
           );
         }
       },
@@ -257,7 +270,7 @@ export default class EditorStore {
   }
 
   private dispatchTransactionWithoutView(tr: Transaction): void {
-    log.trace('Editor transaction', tr);
+    log.trace({ tr }, 'Editor transaction');
     this.state = tr.state;
     this.client?.onTransaction(tr);
     if (tr.docChanged) {
@@ -307,8 +320,30 @@ export default class EditorStore {
     this.hexTypeHashes = hexTypeHashes;
   }
 
-  updateOccurrences(write: IOccurrence[], read: IOccurrence[]): void {
-    this.dispatch(setOccurrences(write, read));
+  updateOccurrences(
+    write: IOccurrence[],
+    read: IOccurrence[],
+    goToFirst = false,
+    fallbackPos?: number,
+  ): void {
+    let goTo: number | undefined;
+    if (goToFirst) {
+      goTo = write[0]?.from ?? read[0]?.from ?? fallbackPos;
+    }
+    this.dispatch(
+      setOccurrences(write, read),
+      ...(goTo === undefined
+        ? []
+        : [
+            {
+              selection: { anchor: goTo },
+              effects: [EditorView.scrollIntoView(goTo)],
+            },
+          ]),
+    );
+    if (goTo !== undefined) {
+      this.view?.focus();
+    }
   }
 
   async contentAssist(
@@ -320,6 +355,18 @@ export default class EditorStore {
     return this.client.contentAssist(context);
   }
 
+  async hoverTooltip(pos: number): Promise<Tooltip | null> {
+    if (this.client === undefined) {
+      return null;
+    }
+    return this.client.hoverTooltip(pos);
+  }
+
+  goToDefinition(pos?: number): boolean {
+    this.client?.goToDefinition(pos);
+    return true;
+  }
+
   /**
    * @returns `true` if there is history to undo
    */
@@ -328,7 +375,7 @@ export default class EditorStore {
   }
 
   undo(): void {
-    log.debug('Undo', this.doStateCommand(undo));
+    log.debug('Undo: %s', this.doStateCommand(undo));
   }
 
   /**
@@ -339,17 +386,17 @@ export default class EditorStore {
   }
 
   redo(): void {
-    log.debug('Redo', this.doStateCommand(redo));
+    log.debug('Redo: %s', this.doStateCommand(redo));
   }
 
   toggleLineNumbers(): void {
     this.showLineNumbers = !this.showLineNumbers;
-    log.debug('Show line numbers', this.showLineNumbers);
+    log.debug('Show line numbers: %s', this.showLineNumbers);
   }
 
   toggleColorIdentifiers(): void {
     this.colorIdentifiers = !this.colorIdentifiers;
-    log.debug('Color identifiers', this.colorIdentifiers);
+    log.debug('Color identifiers: %s', this.colorIdentifiers);
   }
 
   get hasSelection(): boolean {
@@ -390,21 +437,20 @@ export default class EditorStore {
     this.propagationRejected = propagationRejected;
   }
 
-  setSemantics(semantics: SemanticsModelResult) {
+  setSemantics(semantics: SemanticsModelResult, source?: string) {
     this.semanticsUpToDate = true;
-    this.graph.setSemantics(semantics);
+    this.graph.setSemantics(semantics, source);
   }
 
   dispose(): void {
+    this.visibilityMapReaction();
     this.client?.dispose();
     this.delayedErrors.dispose();
     this.disposed = true;
   }
 
   startModelGeneration(randomSeed?: number): void {
-    this.client
-      ?.startModelGeneration(randomSeed)
-      ?.catch((error) => log.error('Could not start model generation', error));
+    this.client?.startModelGeneration(randomSeed);
   }
 
   addGeneratedModel(uuid: string, randomSeed: number): void {
@@ -413,9 +459,7 @@ export default class EditorStore {
   }
 
   cancelModelGeneration(): void {
-    this.client
-      ?.cancelModelGeneration()
-      ?.catch((error) => log.error('Could not start model generation', error));
+    this.client?.cancelModelGeneration();
   }
 
   selectGeneratedModel(uuid: string | undefined): void {
@@ -481,8 +525,9 @@ export default class EditorStore {
   setGeneratedModelSemantics(
     uuid: string,
     semantics: SemanticsModelResult,
+    source?: string,
   ): void {
-    this.generatedModels.get(uuid)?.setSemantics(semantics);
+    this.generatedModels.get(uuid)?.setSemantics(semantics, source);
   }
 
   get generating(): boolean {
@@ -496,7 +541,7 @@ export default class EditorStore {
   openFile(): boolean {
     openTextFile(FILE_PICKER_OPTIONS)
       .then((result) => this.fileOpened(result))
-      .catch((error) => log.error('Failed to open file', error));
+      .catch((err: unknown) => log.error({ err }, 'Failed to open file'));
     return true;
   }
 
@@ -505,7 +550,7 @@ export default class EditorStore {
   }
 
   private setFile({ name, handle }: OpenResult): void {
-    log.info('Opened file', name);
+    log.info('Opened file: %s', name);
     this.fileName = name;
     this.fileHandle = handle;
   }
@@ -541,7 +586,7 @@ export default class EditorStore {
     }
     saveTextFile(this.fileHandle, this.state.sliceDoc())
       .then(() => this.clearUnsavedChanges())
-      .catch((error) => log.error('Failed to save file', error));
+      .catch((err: unknown) => log.error({ err }, 'Failed to save file'));
     return true;
   }
 
@@ -551,7 +596,7 @@ export default class EditorStore {
     });
     saveBlob(blob, this.fileName ?? 'graph.problem', FILE_PICKER_OPTIONS)
       .then((result) => this.fileSavedAs(result))
-      .catch((error) => log.error('Failed to save file', error));
+      .catch((err: unknown) => log.error({ err }, 'Failed to save file'));
     return true;
   }
 

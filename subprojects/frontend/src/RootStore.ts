@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
+import { Visibility } from '@tools.refinery/client';
 import { getLogger } from 'loglevel';
 import {
   IReactionDisposer,
@@ -14,20 +15,25 @@ import {
 
 import PWAStore from './PWAStore';
 import type EditorStore from './editor/EditorStore';
-import ExportSettingsScotre from './graph/export/ExportSettingsStore';
+import ExportSettingsStore from './graph/export/ExportSettingsStore';
 import Compressor from './persistence/Compressor';
 import ThemeStore from './theme/ThemeStore';
+import fetchBackendConfig, {
+  type BackendConfigWithDefaults,
+} from './xtext/fetchBackendConfig';
 
 const log = getLogger('RootStore');
 
 export default class RootStore {
-  private readonly compressor = new Compressor((text) =>
-    this.setInitialValue(text),
-  );
+  private readonly compressor = new Compressor(this.setInitialValue.bind(this));
 
   private initialValue: string | undefined;
 
+  private initialVisibility: Record<string, Visibility> | undefined;
+
   private editorStoreClass: typeof EditorStore | undefined;
+
+  backendConfig: BackendConfigWithDefaults | undefined;
 
   editorStore: EditorStore | undefined;
 
@@ -35,7 +41,7 @@ export default class RootStore {
 
   readonly themeStore: ThemeStore;
 
-  readonly exportSettingsStore: ExportSettingsScotre;
+  readonly exportSettingsStore: ExportSettingsStore;
 
   disposed = false;
 
@@ -44,7 +50,7 @@ export default class RootStore {
   constructor() {
     this.pwaStore = new PWAStore();
     this.themeStore = new ThemeStore();
-    this.exportSettingsStore = new ExportSettingsScotre();
+    this.exportSettingsStore = new ExportSettingsStore();
     makeAutoObservable<
       RootStore,
       'compressor' | 'editorStoreClass' | 'titleReaction'
@@ -57,30 +63,46 @@ export default class RootStore {
       titleReaction: false,
     });
     (async () => {
-      const { default: EditorStore } = await import('./editor/EditorStore');
+      const [backendConfig, { default: EditorStore }] = await Promise.all([
+        fetchBackendConfig(),
+        import('./editor/EditorStore'),
+      ]);
       runInAction(() => {
         if (this.disposed) {
           return;
         }
+        this.backendConfig = backendConfig;
         this.editorStoreClass = EditorStore;
         if (this.initialValue !== undefined) {
-          this.setInitialValue(this.initialValue);
+          this.setInitialValue(this.initialValue, this.initialVisibility);
         }
       });
-    })().catch((error) => {
-      log.error('Failed to load EditorStore', error);
+    })().catch((err: unknown) => {
+      log.error({ err }, 'Failed to load EditorStore');
     });
     this.compressor.decompressInitial();
   }
 
-  private setInitialValue(initialValue: string): void {
-    this.initialValue = initialValue;
-    if (this.editorStoreClass !== undefined) {
+  setInitialValue(
+    initialValue: string,
+    visibility: Record<string, Visibility> | undefined,
+  ): void {
+    runInAction(() => {
+      this.initialValue = initialValue;
+      this.initialVisibility = visibility;
+    });
+    if (
+      this.initialValue !== undefined &&
+      this.backendConfig !== undefined &&
+      this.editorStoreClass !== undefined
+    ) {
       const EditorStore = this.editorStoreClass;
       const editorStore = new EditorStore(
         this.initialValue,
+        this.initialVisibility,
         this.pwaStore,
-        (text) => this.compressor.compress(text),
+        this.backendConfig,
+        this.compressor.compress.bind(this.compressor),
       );
       this.editorStore = editorStore;
       this.titleReaction?.();
@@ -97,6 +119,10 @@ export default class RootStore {
         }
       });
     }
+  }
+
+  get hasChat(): boolean {
+    return this.backendConfig?.chatURL !== undefined;
   }
 
   dispose(): void {

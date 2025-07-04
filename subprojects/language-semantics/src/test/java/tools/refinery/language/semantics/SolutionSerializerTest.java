@@ -57,18 +57,19 @@ class SolutionSerializerTest {
 		var initializer = initializerProvider.get();
 		var modelSeed = initializer.createModel(problem, storeBuilder);
 		var store = storeBuilder.build();
-		var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed);
-		var initialVersion = model.commit();
-		var bestFirst = new BestFirstStoreManager(store, 1);
-		bestFirst.startExploration(initialVersion, 0);
-		model.restore(bestFirst.getSolutionStore().getSolutions().getFirst().version());
-		var serializer = serializerProvider.get();
-		serializer.setPreserveNewNodes(preserveNewNodes);
-		var solution = serializer.serializeSolution(initializer.getProblemTrace(), model);
 		String actualOutput;
-		try (var outputStream = new ByteArrayOutputStream()) {
-			solution.eResource().save(outputStream, Map.of());
-			actualOutput = outputStream.toString();
+		try (var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed)) {
+			var initialVersion = model.commit();
+			var bestFirst = new BestFirstStoreManager(store, 1);
+			bestFirst.startExploration(initialVersion, 0);
+			model.restore(bestFirst.getSolutionStore().getSolutions().getFirst().version());
+			var serializer = serializerProvider.get();
+			serializer.setPreserveNewNodes(preserveNewNodes);
+			var solution = serializer.serializeSolution(initializer.getProblemTrace(), model);
+			try (var outputStream = new ByteArrayOutputStream()) {
+				solution.eResource().save(outputStream, Map.of());
+				actualOutput = outputStream.toString();
+			}
 		}
 		var normalizedResult = actualOutput.replace("\r\n", "\n");
 		var normalizedExpected = (prefix + "\n" + expectedOutput).replace("\r\n", "\n");
@@ -237,8 +238,11 @@ class SolutionSerializerTest {
 				!exists(Foo::new).
 				Foo(foo1).
 				"""), Arguments.of("""
+				import builtin::strategy.
+
 				class Foo {
-					partial Bar[] bar
+					@concretize(false)
+					Bar[] bar
 				}
 
 				class Bar.
@@ -276,9 +280,13 @@ class SolutionSerializerTest {
 				default !bar(*, *).
 				bar(a, b).
 				"""), Arguments.of("""
+				import builtin::strategy.
+
 				class Foo.
 				class Bar.
-				partial pred bar(Foo x, Bar y, Bar z).
+
+				@concretize(false)
+				pred bar(Foo x, Bar y, Bar z).
 				""", """
 				!bar(*, *, Bar::new).
 				bar(a, b, b).
@@ -315,9 +323,14 @@ class SolutionSerializerTest {
 				default !foo(*, *).
 				foo(A::new, b).
 				"""), Arguments.of("""
+				import builtin::strategy.
+
 				class Foo {
-					partial Bar[] baz
-					partial Bar[] quux
+					@concretize(false)
+					Bar[] baz
+
+					@concretize(false)
+					Bar[] quux
 				}
 
 				class Bar.
@@ -346,9 +359,14 @@ class SolutionSerializerTest {
 				?quux(foo1, bar3).
 				query(foo1, bar2).
 				"""), Arguments.of("""
+				import builtin::strategy.
+
 				class Foo {
-					partial Bar[] baz
-					partial Bar[] quux
+					@concretize(false)
+					Bar[] baz
+
+					@concretize(false)
+					Bar[] quux
 				}
 
 				class Bar.
@@ -378,6 +396,34 @@ class SolutionSerializerTest {
 				?quux(foo1, bar2).
 				?quux(foo1, bar3).
 				!query(foo1, bar2).
+				"""), Arguments.of("""
+				class Filesystem {
+					contains Dir[1] root
+				}
+
+				abstract class FSObject {
+					container Dir parent opposite contents
+				}
+
+				class Dir extends FSObject {
+					contains FSObject[] contents opposite parent
+				}
+
+				class File extends FSObject.
+				""", """
+				Filesystem(git).
+				root(git, project).
+				contents(project, test).
+				Dir(test).
+				?exists(test).
+				""", false, """
+				declare git, project.
+				!exists(Filesystem::new).
+				!exists(Dir::new).
+				!exists(File::new).
+				Filesystem(git).
+				Dir(project).
+				root(git, project).
 				"""));
 	}
 }

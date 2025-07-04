@@ -23,6 +23,7 @@ interface OuterPalette {
   background: string;
   border: string;
   disabled: string;
+  elevated: string;
 }
 
 interface TypeHashPalette {
@@ -34,6 +35,7 @@ interface HighlightPalette {
   number: string;
   parameter: string;
   comment: string;
+  string: string;
   activeLine: string;
   selection: string;
   foldPlaceholder: string;
@@ -274,11 +276,13 @@ export const lightTheme = (() => {
           background: darkBackground,
           border: '#c8c8c8',
           disabled: darkBackground,
+          elevated: '#c9e0ff',
         },
         highlight: {
           number: '#0084bc',
           parameter: '#6a3e3e',
           comment: disabledText,
+          string: '#50a14f',
           activeLine: darkBackground,
           selection: '#c8e4fb',
           foldPlaceholder: alpha(primaryText, 0.08),
@@ -337,6 +341,7 @@ export const darkTheme = (() => {
   const primaryText = '#ebebff';
   const secondaryText = '#abb2bf';
   const darkBackground = '#21252b';
+  const lightBackground = '#363b43';
 
   return createResponsiveTheme(
     {
@@ -367,11 +372,13 @@ export const darkTheme = (() => {
           background: darkBackground,
           border: '#181a1f',
           disabled: '#2e333c',
+          elevated: lightBackground,
         },
         highlight: {
           number: '#6188a6',
           parameter: '#c8ae9d',
           comment: '#7f848e',
+          string: '#98c379',
           activeLine: '#2c313c',
           selection: '#404859',
           foldPlaceholder: alpha(primaryText, 0.12),
@@ -405,7 +412,7 @@ export const darkTheme = (() => {
         MuiCssBaseline: {
           styleOverrides: {
             '.notistack-MuiContent-default': {
-              background: `${theme.palette.highlight.activeLine} !important`,
+              background: `${lightBackground} !important`,
             },
             '.notistack-MuiContent-error': {
               background: `${theme.palette.highlight.typeHash[1]?.box} !important`,
@@ -428,6 +435,13 @@ export const darkTheme = (() => {
             },
           },
         },
+        MuiPaper: {
+          styleOverrides: {
+            root: {
+              background: lightBackground,
+            },
+          },
+        },
       },
     }),
   );
@@ -443,7 +457,7 @@ function ThemeAndContrastThemeProvider({
   theme: Theme;
   contrastTheme: Theme;
   children?: ReactNode;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <MaterialUiThemeProvider theme={theme}>
       <ContrastThemeContext.Provider value={contrastTheme}>
@@ -457,7 +471,7 @@ export function ContrastThemeProvider({
   children,
 }: {
   children?: ReactNode;
-}): JSX.Element {
+}): React.ReactElement {
   const contrastTheme = useContext(ContrastThemeContext);
   if (!contrastTheme) {
     throw new Error('ContrastThemeProvider must be used within ThemeProvider');
@@ -473,7 +487,7 @@ const ThemeProvider = observer(function ThemeProvider({
   children,
 }: {
   children?: ReactNode;
-}): JSX.Element {
+}): React.ReactElement {
   const {
     themeStore: { darkMode },
   } = useRootStore();

@@ -31,9 +31,11 @@ import { search, searchKeymap, selectNextOccurrence } from '@codemirror/search';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import {
   drawSelection,
+  EditorView,
   highlightActiveLine,
   highlightActiveLineGutter,
   highlightSpecialChars,
+  hoverTooltip,
   keymap,
   lineNumbers,
   rectangularSelection,
@@ -46,8 +48,10 @@ import problemLanguageSupport from '../language/problemLanguageSupport';
 import type EditorStore from './EditorStore';
 import SearchPanel from './SearchPanel';
 import bidiIsolatesExtension from './bidiIsolatesExtension';
+import crosshairCursor from './crosshairCursor';
 import exposeDiagnostics from './exposeDiagnostics';
 import findOccurrences from './findOccurrences';
+import goToDefinition from './goToDefinition';
 import scrollbarsExtension from './scrollbarsExtension';
 import semanticHighlighting from './semanticHighlighting';
 
@@ -68,13 +72,17 @@ export default function createEditorState(
         activateOnTyping: true,
         override: [(context) => store.contentAssist(context)],
       }),
+      hoverTooltip((_editorView, pos) => store.hoverTooltip(pos)),
       closeBrackets(),
       bidiIsolatesExtension(),
       bracketMatching(),
       drawSelection(),
       EditorState.allowMultipleSelections.of(true),
+      // See https://discuss.codemirror.net/t/adding-multiple-selections-with-alt-click-instead-of-ctrl-click/5034
+      EditorView.clickAddsSelectionRange.of((e) => e.altKey && !e.shiftKey),
       exposeDiagnostics,
       findOccurrences,
+      goToDefinition(store),
       highlightActiveLine(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
@@ -83,7 +91,10 @@ export default function createEditorState(
       indentationMarkers({
         markerType: 'codeOnly',
       }),
-      rectangularSelection(),
+      rectangularSelection({
+        eventFilter: (e) => e.altKey && e.shiftKey,
+      }),
+      crosshairCursor(),
       search({
         createPanel(view) {
           return new SearchPanel(view, store.searchPanel);
@@ -131,6 +142,10 @@ export default function createEditorState(
         ...completionKeymap,
         ...foldKeymap,
         ...historyKeymap,
+        {
+          key: 'F3',
+          run: () => store.goToDefinition(),
+        },
         // Enable accepting completions with tab, overrides `Tab` from
         // `indentWithTab` if there is an active completion.
         { key: 'Tab', run: acceptCompletion },

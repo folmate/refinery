@@ -10,6 +10,8 @@ import org.jetbrains.annotations.NotNull;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.language.semantics.SemanticsUtils;
 import tools.refinery.language.semantics.TracedException;
+import tools.refinery.language.utils.BuiltinAnnotationContext;
+import tools.refinery.language.utils.ParameterBinding;
 import tools.refinery.language.validation.ReferenceCounter;
 import tools.refinery.logic.dnf.Query;
 import tools.refinery.logic.literal.BooleanLiteral;
@@ -18,6 +20,7 @@ import tools.refinery.logic.literal.Literal;
 import tools.refinery.logic.term.NodeVariable;
 import tools.refinery.logic.term.Variable;
 import tools.refinery.logic.term.truthvalue.TruthValue;
+import tools.refinery.store.dse.transition.DecisionRule;
 import tools.refinery.store.dse.transition.Rule;
 import tools.refinery.store.dse.transition.RuleBuilder;
 import tools.refinery.store.dse.transition.actions.ActionLiteral;
@@ -40,13 +43,22 @@ public class RuleCompiler {
 	@Inject
 	private SemanticsUtils semanticsUtils;
 
+	@Inject
+	private BuiltinAnnotationContext builtinAnnotationContext;
+
 	private QueryCompiler queryCompiler;
 
 	public void setQueryCompiler(QueryCompiler queryCompiler) {
 		this.queryCompiler = queryCompiler;
 	}
 
-	public Rule toDecisionRule(String name, RuleDefinition ruleDefinition) {
+	public DecisionRule toDecisionRule(String name, RuleDefinition ruleDefinition) {
+		var rule = toDecisionRuleInternal(name, ruleDefinition);
+		var settings = builtinAnnotationContext.getDecisionSettings(ruleDefinition);
+		return new DecisionRule(rule, settings.priority(), settings.coefficient(), settings.exponent());
+	}
+
+	private Rule toDecisionRuleInternal(String name, RuleDefinition ruleDefinition) {
 		var consequents = ruleDefinition.getConsequents();
 		if (consequents.isEmpty()) {
 			return toRule(name, ruleDefinition);
@@ -174,7 +186,7 @@ public class RuleCompiler {
 				var partialType = getPartialRelation(parameterType);
 				commonLiterals.add(partialType.call(parameter));
 			}
-			var binding = problemParameter.getBinding();
+			var binding = builtinAnnotationContext.getParameterBinding(problemParameter);
 			if (needsExplicitMultiObjectParameters) {
 				if (binding == ParameterBinding.SINGLE) {
 					commonLiterals.add(MultiObjectTranslator.MULTI_VIEW.call(CallPolarity.NEGATIVE, parameter));

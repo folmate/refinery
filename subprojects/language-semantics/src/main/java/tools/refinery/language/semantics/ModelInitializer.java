@@ -14,6 +14,7 @@ import tools.refinery.language.semantics.internal.MutableRelationCollector;
 import tools.refinery.language.semantics.internal.MutableSeed;
 import tools.refinery.language.semantics.internal.query.QueryCompiler;
 import tools.refinery.language.semantics.internal.query.RuleCompiler;
+import tools.refinery.language.utils.BuiltinAnnotationContext;
 import tools.refinery.language.utils.BuiltinSymbols;
 import tools.refinery.language.utils.ProblemUtil;
 import tools.refinery.logic.dnf.InvalidClauseException;
@@ -31,6 +32,7 @@ import tools.refinery.store.reasoning.representation.PartialRelation;
 import tools.refinery.store.reasoning.scope.ScopePropagator;
 import tools.refinery.store.reasoning.seed.ModelSeed;
 import tools.refinery.store.reasoning.seed.Seed;
+import tools.refinery.store.reasoning.translator.ConcretizationSettings;
 import tools.refinery.store.reasoning.translator.TranslationException;
 import tools.refinery.store.reasoning.translator.containment.ContainmentHierarchyTranslator;
 import tools.refinery.store.reasoning.translator.metamodel.Metamodel;
@@ -66,6 +68,9 @@ public class ModelInitializer {
 
 	@Inject
 	private MutableRelationCollector mutableRelationCollector;
+
+	@Inject
+	private BuiltinAnnotationContext builtinAnnotationContext;
 
 	@Inject
 	private QueryCompiler queryCompiler;
@@ -359,7 +364,7 @@ public class ModelInitializer {
 		}
 		try {
 			metamodelBuilder.type(getPartialRelation(classDeclaration), classDeclaration.isAbstract(),
-					partialSuperTypes);
+					builtinAnnotationContext.isClassDeclarationDecide(classDeclaration), partialSuperTypes);
 		} catch (RuntimeException e) {
 			throw TracedException.addTrace(classDeclaration, e);
 		}
@@ -374,7 +379,7 @@ public class ModelInitializer {
 		var source = getPartialRelation(classDeclaration);
 		var target = getPartialRelation(referenceDeclaration.getReferenceType());
 		boolean containment = referenceDeclaration.getKind() == ReferenceKind.CONTAINMENT;
-		boolean partial = referenceDeclaration.getKind() == ReferenceKind.PARTIAL;
+		var concretizationSettings = getConcretizationSettings(referenceDeclaration);
 		var opposite = referenceDeclaration.getOpposite();
 		PartialRelation oppositeRelation = null;
 		if (opposite != null) {
@@ -398,12 +403,17 @@ public class ModelInitializer {
 					.target(target)
 					.opposite(oppositeRelation)
 					.defaultValue(defaultValue)
-					.partial(partial)
+					.concretizationSettings(concretizationSettings)
 					.supersets(supersets)
 					.build());
 		} catch (RuntimeException e) {
 			throw TracedException.addTrace(classDeclaration, e);
 		}
+	}
+
+	private ConcretizationSettings getConcretizationSettings(Relation relation) {
+		var problemSettings = builtinAnnotationContext.getConcretizationSettings(relation);
+		return new ConcretizationSettings(problemSettings.concretize(), problemSettings.decide());
 	}
 
 	private Multiplicity getMultiplicityConstraint(ReferenceDeclaration referenceDeclaration) {
@@ -537,6 +547,9 @@ public class ModelInitializer {
 		var typeInfo = metamodel.typeHierarchy().getAnalysisResult(getPartialRelation(classDeclaration));
 		for (var subType : typeInfo.getDirectSubtypes()) {
 			partialRelationInfoMap.get(subType).assertions().mergeValue(tuple, TruthValue.FALSE);
+		}
+		for (var superType : typeInfo.getAllSupertypes()) {
+			partialRelationInfoMap.get(superType).assertions().mergeValue(tuple, TruthValue.TRUE);
 		}
 	}
 
@@ -677,9 +690,9 @@ public class ModelInitializer {
 		var supersets = getSupersets(predicateDefinition);
 		var seed = modelSeed.getSeed(partialRelation);
 		var defaultValue = seed.majorityValue() == TruthValue.FALSE ? TruthValue.FALSE : TruthValue.UNKNOWN;
-		boolean partial = predicateDefinition.getKind() == PredicateKind.PARTIAL;
+		var concretizationSettings = getConcretizationSettings(predicateDefinition);
 		var translator = new BasePredicateTranslator(partialRelation, parameterTypes, supersets, defaultValue,
-                partial);
+				concretizationSettings);
 		storeBuilder.with(translator);
 	}
 
@@ -792,7 +805,7 @@ public class ModelInitializer {
 			switch (ruleDefinition.getKind()) {
 			case DECISION -> {
 				var rule = ruleCompiler.toDecisionRule(name, ruleDefinition);
-				problemTrace.putRuleDefinition(ruleDefinition, rule);
+				problemTrace.putRuleDefinition(ruleDefinition, rule.rule());
 				storeBuilder.tryGetAdapter(DesignSpaceExplorationBuilder.class)
 						.ifPresent(dseBuilder -> dseBuilder.transformation(rule));
 			}

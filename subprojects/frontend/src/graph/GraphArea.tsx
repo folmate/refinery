@@ -24,7 +24,7 @@ const SyncWarning = observer(function SyncWarning({
   graph: { dimView },
 }: {
   graph: GraphStore;
-}): JSX.Element {
+}): React.ReactElement {
   const theme = useTheme();
   return (
     <Box
@@ -66,7 +66,7 @@ const Overlay = observer(function Overlay({
   graph: { dimView },
 }: {
   graph: GraphStore;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <Box
       sx={(theme) => ({
@@ -93,11 +93,9 @@ export default function GraphArea({
   graph,
 }: {
   graph: GraphStore;
-}): JSX.Element {
+}): React.ReactElement {
   const { breakpoints } = useTheme();
-  const { ref, width, height } = useResizeDetector({
-    refreshMode: 'debounce',
-  });
+  const { ref, width, height } = useResizeDetector();
   const [svgContainer, setSvgContainer] = useState<HTMLElement | undefined>();
 
   const breakpoint = breakpoints.values.sm;

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CodeIcon from '@mui/icons-material/Code';
 import SchemaRoundedIcon from '@mui/icons-material/SchemaRounded';
 import TableChartIcon from '@mui/icons-material/TableChart';
@@ -14,6 +15,7 @@ import { observer } from 'mobx-react-lite';
 
 import Tooltip from './Tooltip';
 import type ThemeStore from './theme/ThemeStore';
+// eslint-disable-next-line no-duplicate-imports -- Needed due to default type import.
 import type { SelectedPane } from './theme/ThemeStore';
 
 const PaneButtonGroup = styled(ToggleButtonGroup, {
@@ -96,7 +98,7 @@ const PaneButton = observer(function PaneButton({
   label: string;
   icon: React.ReactNode;
   hideLabel: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   const button = (
     <ToggleButton
       value={value}
@@ -118,11 +120,13 @@ const PaneButton = observer(function PaneButton({
 
 function PaneButtons({
   themeStore,
+  hasChat,
   hideLabel,
 }: {
   themeStore: ThemeStore;
+  hasChat: boolean;
   hideLabel?: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   const hideLabelOrDefault = hideLabel ?? false;
   return (
     <PaneButtonGroup
@@ -150,6 +154,20 @@ function PaneButtons({
         icon={<TableChartIcon fontSize="small" />}
         hideLabel={hideLabelOrDefault}
       />
+      {hasChat && (
+        <PaneButton
+          themeStore={themeStore}
+          value="chat"
+          label="AI"
+          icon={
+            <AutoAwesomeIcon
+              fontSize="small"
+              sx={{ transform: 'scaleX(-1)' }}
+            />
+          }
+          hideLabel={hideLabelOrDefault}
+        />
+      )}
     </PaneButtonGroup>
   );
 }

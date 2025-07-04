@@ -8,7 +8,13 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["vite/client", "vite-plugin-pwa/client"]
+    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "emitDeclarationOnly": true,
+    "outDir": "build/typescript/browser",
+    "paths": {
+      "@tools.refinery/client": ["../client-js/src/index.ts"],
+      "@tools.refinery/client/chat": ["../client-js/src/chat/index.ts"]
+    }
   },
   "include": [
     "src",
@@ -20,6 +26,7 @@
   ],
   "references": [
     { "path": "./tsconfig.node.json" },
-    { "path": "./tsconfig.shared.json" }
+    { "path": "./tsconfig.shared.json" },
+    { "path": "../client-js/tsconfig.json" },
   ]
 }

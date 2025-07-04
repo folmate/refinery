@@ -16,9 +16,9 @@ import RelationName from '../graph/RelationName';
 import isBuiltIn from '../utils/isBuiltIn';
 import type { RelationMetadata } from '../xtext/xtextServiceResults';
 
-const placeholderText = `Select symbol to view\u2026`;
+const placeholderText = 'Select symbol to view';
 
-function SymbolSelector({ graph }: { graph: GraphStore }): JSX.Element {
+function SymbolSelector({ graph }: { graph: GraphStore }): React.ReactElement {
   const {
     selectedSymbol,
     semantics: { relations },
@@ -74,9 +74,10 @@ function SymbolSelector({ graph }: { graph: GraphStore }): JSX.Element {
       )}
       options={filteredRelations}
       getOptionLabel={(option) => option.name}
-      renderOption={({ className, ...props }, option) => (
+      renderOption={({ className, key, ...props }, option) => (
         <Box
           component="li"
+          key={key as undefined}
           {...props}
           className={clsx(className ?? '', {
             builtInOption: isBuiltIn(option),

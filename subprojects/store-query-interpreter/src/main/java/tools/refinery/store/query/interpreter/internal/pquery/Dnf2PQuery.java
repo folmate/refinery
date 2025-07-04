@@ -11,7 +11,6 @@ import tools.refinery.interpreter.matchers.context.IInputKey;
 import tools.refinery.interpreter.matchers.psystem.PBody;
 import tools.refinery.interpreter.matchers.psystem.PVariable;
 import tools.refinery.interpreter.matchers.psystem.aggregations.BoundAggregator;
-import tools.refinery.interpreter.matchers.psystem.aggregations.IMultisetAggregationOperator;
 import tools.refinery.interpreter.matchers.psystem.annotations.PAnnotation;
 import tools.refinery.interpreter.matchers.psystem.annotations.ParameterReference;
 import tools.refinery.interpreter.matchers.psystem.basicdeferred.*;
@@ -28,10 +27,7 @@ import tools.refinery.logic.dnf.DnfClause;
 import tools.refinery.logic.dnf.FunctionalDependency;
 import tools.refinery.logic.dnf.SymbolicParameter;
 import tools.refinery.logic.literal.*;
-import tools.refinery.logic.term.ConstantTerm;
-import tools.refinery.logic.term.StatefulAggregator;
-import tools.refinery.logic.term.StatelessAggregator;
-import tools.refinery.logic.term.Variable;
+import tools.refinery.logic.term.*;
 import tools.refinery.logic.util.CycleDetectingMapper;
 import tools.refinery.store.query.view.AnySymbolView;
 
@@ -94,7 +90,7 @@ public class Dnf2PQuery {
 			body.setSymbolicParameters(parameterExports);
 			pQuery.addBody(body);
 			for (Literal literal : clause.literals()) {
-				translateLiteral(literal, body);
+				translateLiteral(clause, literal, body);
 			}
 		}
 
@@ -114,20 +110,17 @@ public class Dnf2PQuery {
 		return functionalDependencyAnnotation;
 	}
 
-	private void translateLiteral(Literal literal, PBody body) {
-        switch (literal) {
-            case EquivalenceLiteral equivalenceLiteral -> translateEquivalenceLiteral(equivalenceLiteral, body);
-            case CallLiteral callLiteral -> translateCallLiteral(callLiteral, body);
-            case ConstantLiteral constantLiteral -> translateConstantLiteral(constantLiteral, body);
-            case AssignLiteral<?> assignLiteral -> translateAssignLiteral(assignLiteral, body);
-            case CheckLiteral checkLiteral -> translateCheckLiteral(checkLiteral, body);
-            case CountLiteral countLiteral -> translateCountLiteral(countLiteral, body);
-            case AggregationLiteral<?, ?> aggregationLiteral -> translateAggregationLiteral(aggregationLiteral, body);
-			case LeftJoinLiteral<?> leftJoinLiteral -> translateLeftJoinLiteral(leftJoinLiteral, body);
-            case RepresentativeElectionLiteral representativeElectionLiteral ->
-                    translateRepresentativeElectionLiteral(representativeElectionLiteral, body);
-            case null, default -> throw new IllegalArgumentException("Unknown literal: " + literal);
-        }
+	private void translateLiteral(DnfClause clause, Literal literal, PBody body) {
+		switch (literal) {
+		case EquivalenceLiteral equivalenceLiteral -> translateEquivalenceLiteral(equivalenceLiteral, body);
+		case CallLiteral callLiteral -> translateCallLiteral(callLiteral, body);
+		case ConstantLiteral constantLiteral -> translateConstantLiteral(constantLiteral, body);
+		case AssignLiteral<?> assignLiteral -> translateAssignLiteral(clause, assignLiteral, body);
+		case CheckLiteral checkLiteral -> translateCheckLiteral(clause, checkLiteral, body);
+		case RepresentativeElectionLiteral representativeElectionLiteral ->
+				translateRepresentativeElectionLiteral(representativeElectionLiteral, body);
+		case null, default -> throw new IllegalArgumentException("Unknown literal: " + literal);
+		}
 	}
 
 	private void translateEquivalenceLiteral(EquivalenceLiteral equivalenceLiteral, PBody body) {
@@ -146,14 +139,16 @@ public class Dnf2PQuery {
 		case POSITIVE -> {
 			var substitution = translateSubstitution(callLiteral.getArguments(), body);
 			var constraint = callLiteral.getTarget();
-			if (constraint instanceof Dnf dnf) {
+			switch (constraint) {
+			case Dnf dnf -> {
 				var pattern = translate(dnf);
 				new PositivePatternCall(body, substitution, pattern);
-			} else if (constraint instanceof AnySymbolView symbolView) {
+			}
+			case AnySymbolView symbolView -> {
 				var inputKey = wrapperFactory.getInputKey(symbolView);
 				new TypeConstraint(body, substitution, inputKey);
-			} else {
-				throw new IllegalArgumentException("Unknown Constraint: " + constraint);
+			}
+			default -> throw new IllegalArgumentException("Unknown Constraint: " + constraint);
 			}
 		}
 		case TRANSITIVE -> {
@@ -172,13 +167,11 @@ public class Dnf2PQuery {
 	}
 
 	private PQuery wrapConstraintWithIdentityArguments(Constraint constraint) {
-		if (constraint instanceof Dnf dnf) {
-			return translate(dnf);
-		} else if (constraint instanceof AnySymbolView symbolView) {
-			return wrapperFactory.wrapSymbolViewIdentityArguments(symbolView);
-		} else {
-			throw new IllegalArgumentException("Unknown Constraint: " + constraint);
-		}
+		return switch (constraint) {
+			case Dnf dnf -> translate(dnf);
+			case AnySymbolView symbolView -> wrapperFactory.wrapSymbolViewIdentityArguments(symbolView);
+			default -> throw new IllegalArgumentException("Unknown Constraint: " + constraint);
+		};
 	}
 
 	private static Tuple translateSubstitution(List<Variable> substitution, PBody body) {
@@ -196,42 +189,44 @@ public class Dnf2PQuery {
 		new ConstantValue(body, variable, tools.refinery.store.tuple.Tuple.of(constantLiteral.getNodeId()));
 	}
 
-	private <T> void translateAssignLiteral(AssignLiteral<T> assignLiteral, PBody body) {
+	private <T> void translateAssignLiteral(DnfClause clause, AssignLiteral<T> assignLiteral, PBody body) {
 		var variable = body.getOrCreateVariableByName(assignLiteral.getVariable().getUniqueName());
 		var term = assignLiteral.getTerm();
-		if (term instanceof ConstantTerm<T> constantTerm) {
-			new ConstantValue(body, variable, constantTerm.getValue());
-		} else {
-			var evaluator = new TermEvaluator<>(term);
+		switch (term) {
+		case ConstantTerm<T> constantTerm -> new ConstantValue(body, variable, constantTerm.getValue());
+		case CountTerm countTerm -> translateCountTerm(countTerm, variable, body);
+		case AggregationTerm<T, ?> aggregationTerm -> translateAggregationTerm(aggregationTerm, variable, body);
+		case LeftJoinTerm<T> leftJoinTerm -> translateLeftJoinTerm(leftJoinTerm, variable, body);
+		default -> {
+			var evaluator = new TermEvaluator<>(term, clause);
 			new ExpressionEvaluation(body, evaluator, variable);
+		}
 		}
 	}
 
-	private void translateCheckLiteral(CheckLiteral checkLiteral, PBody body) {
-		var evaluator = new CheckEvaluator(checkLiteral.getTerm());
+	private void translateCheckLiteral(DnfClause clause, CheckLiteral checkLiteral, PBody body) {
+		var evaluator = new CheckEvaluator(checkLiteral.getTerm(), clause);
 		new ExpressionEvaluation(body, evaluator, null);
 	}
 
-	private void translateCountLiteral(CountLiteral countLiteral, PBody body) {
+	private void translateCountTerm(CountTerm countLiteral, PVariable resultVariable, PBody body) {
 		var wrappedCall = wrapperFactory.maybeWrapConstraint(countLiteral);
 		var substitution = translateSubstitution(wrappedCall.remappedArguments(), body);
-		var resultVariable = body.getOrCreateVariableByName(countLiteral.getResultVariable().getUniqueName());
 		new PatternMatchCounter(body, substitution, wrappedCall.pattern(), resultVariable);
 	}
 
-	private <R, T> void translateAggregationLiteral(AggregationLiteral<R, T> aggregationLiteral, PBody body) {
-		var aggregator = aggregationLiteral.getAggregator();
-		IMultisetAggregationOperator<T, ?, R> aggregationOperator;
-		if (aggregator instanceof StatelessAggregator<R, T> statelessAggregator) {
-			aggregationOperator = new StatelessMultisetAggregator<>(statelessAggregator);
-		} else if (aggregator instanceof StatefulAggregator<R, T> statefulAggregator) {
-			aggregationOperator = new StatefulMultisetAggregator<>(statefulAggregator);
-		} else {
-			throw new IllegalArgumentException("Unknown aggregator: " + aggregator);
-		}
-		var wrappedCall = wrapperFactory.maybeWrapConstraint(aggregationLiteral);
+	private <R, T> void translateAggregationTerm(AggregationTerm<R, T> aggregationTerm, PVariable resultVariable,
+												 PBody body) {
+		var aggregator = aggregationTerm.getAggregator();
+		var aggregationOperator = switch (aggregator) {
+			case StatelessAggregator<R, T> statelessAggregator ->
+					new StatelessMultisetAggregator<>(statelessAggregator);
+			case StatefulAggregator<R, T> statefulAggregator -> new StatefulMultisetAggregator<>(statefulAggregator);
+			default -> throw new IllegalArgumentException("Unknown aggregator: " + aggregator);
+		};
+		var wrappedCall = wrapperFactory.maybeWrapConstraint(aggregationTerm);
 		var substitution = translateSubstitution(wrappedCall.remappedArguments(), body);
-		var inputVariable = body.getOrCreateVariableByName(aggregationLiteral.getInputVariable().getUniqueName());
+		var inputVariable = body.getOrCreateVariableByName(aggregationTerm.getInputVariable().getUniqueName());
 		var aggregatedColumn = substitution.invertIndex().get(inputVariable);
 		if (aggregatedColumn == null) {
 			throw new IllegalStateException("Input variable %s not found in substitution %s".formatted(inputVariable,
@@ -239,24 +234,22 @@ public class Dnf2PQuery {
 		}
 		var boundAggregator = new BoundAggregator(aggregationOperator, aggregator.getInputType(),
 				aggregator.getResultType());
-		var resultVariable = body.getOrCreateVariableByName(aggregationLiteral.getResultVariable().getUniqueName());
 		new AggregatorConstraint(boundAggregator, body, substitution, wrappedCall.pattern(), resultVariable,
 				aggregatedColumn);
 	}
 
-	private <T> void translateLeftJoinLiteral(LeftJoinLiteral<T> leftJoinLiteral, PBody body) {
-		var wrappedCall = wrapperFactory.maybeWrapConstraint(leftJoinLiteral);
+	private <T> void translateLeftJoinTerm(LeftJoinTerm<T> leftJoinTerm, PVariable resultVariable, PBody body) {
+		var wrappedCall = wrapperFactory.maybeWrapConstraint(leftJoinTerm);
 		var substitution = translateSubstitution(wrappedCall.remappedArguments(), body);
 		var placeholderVariable = body.getOrCreateVariableByName(
-				leftJoinLiteral.getPlaceholderVariable().getUniqueName());
+				leftJoinTerm.getPlaceholderVariable().getUniqueName());
 		var optionalColumn = substitution.invertIndex().get(placeholderVariable);
 		if (optionalColumn == null) {
 			throw new IllegalStateException("Placeholder variable %s not found in substitution %s"
 					.formatted(placeholderVariable, substitution));
 		}
-		var resultVariable = body.getOrCreateVariableByName(leftJoinLiteral.getResultVariable().getUniqueName());
 		new LeftJoinConstraint(body, substitution, wrappedCall.pattern(), resultVariable, optionalColumn,
-				leftJoinLiteral.getDefaultValue());
+				leftJoinTerm.getDefaultValue());
 	}
 
 	private void translateRepresentativeElectionLiteral(RepresentativeElectionLiteral literal, PBody body) {

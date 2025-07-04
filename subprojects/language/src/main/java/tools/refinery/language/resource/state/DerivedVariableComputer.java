@@ -28,30 +28,34 @@ public class DerivedVariableComputer {
 	@Named(AbstractDeclarativeScopeProvider.NAMED_DELEGATE)
 	private IScopeProvider scopeProvider;
 
-	public void installDerivedVariables(Problem problem, Set<String> nodeNames) {
+	public void installDerivedVariables(Problem problem) {
 		for (Statement statement : problem.getStatements()) {
 			if (statement instanceof ParametricDefinition definition) {
-				installDerivedParametricDefinitionState(definition, nodeNames);
+				installDerivedParametricDefinitionState(definition);
 			}
 		}
 	}
 
-	protected void installDerivedParametricDefinitionState(ParametricDefinition definition, Set<String> nodeNames) {
-		Set<String> knownVariables = new HashSet<>(nodeNames);
-		for (Parameter parameter : definition.getParameters()) {
+	protected void installDerivedParametricDefinitionState(ParametricDefinition definition) {
+		var parameters = definition.getParameters();
+		Set<String> knownVariables = HashSet.newHashSet(parameters.size());
+		for (Parameter parameter : parameters) {
 			String name = parameter.getName();
 			if (name != null) {
 				knownVariables.add(name);
 			}
 		}
-        switch (definition) {
-            case PredicateDefinition predicateDefinition ->
-                    installDerivedPredicateDefinitionState(predicateDefinition, knownVariables);
-            case FunctionDefinition functionDefinition ->
-                    installDerivedFunctionDefinitionState(functionDefinition, knownVariables);
-            case RuleDefinition ruleDefinition -> installDerivedRuleDefinitionState(ruleDefinition, knownVariables);
-            default -> throw new IllegalArgumentException("Unknown ParametricDefinition: " + definition);
-        }
+		switch (definition) {
+		case PredicateDefinition predicateDefinition ->
+				installDerivedPredicateDefinitionState(predicateDefinition, knownVariables);
+		case FunctionDefinition functionDefinition ->
+				installDerivedFunctionDefinitionState(functionDefinition, knownVariables);
+		case RuleDefinition ruleDefinition -> installDerivedRuleDefinitionState(ruleDefinition, knownVariables);
+		case AnnotationDeclaration ignoredAnnotationDeclaration -> {
+			// No derived state to install.
+		}
+		default -> throw new IllegalArgumentException("Unknown ParametricDefinition: " + definition);
+		}
 	}
 
 	protected void installDerivedPredicateDefinitionState(PredicateDefinition definition, Set<String> knownVariables) {
@@ -62,15 +66,16 @@ public class DerivedVariableComputer {
 
 	protected void installDerivedFunctionDefinitionState(FunctionDefinition definition, Set<String> knownVariables) {
 		for (Case body : definition.getCases()) {
-			if (body instanceof Conjunction conjunction) {
-				createVariablesForScope(new ImplicitVariableScope(conjunction, knownVariables));
-			} else if (body instanceof Match match) {
+			switch (body) {
+			case Conjunction conjunction ->
+					createVariablesForScope(new ImplicitVariableScope(conjunction, knownVariables));
+			case Match match -> {
 				var condition = match.getCondition();
 				if (condition != null) {
 					createVariablesForScope(new ImplicitVariableScope(match, match.getCondition(), knownVariables));
 				}
-			} else {
-				throw new IllegalArgumentException("Unknown Case: " + body);
+			}
+			default -> throw new IllegalArgumentException("Unknown Case: " + body);
 			}
 		}
 	}

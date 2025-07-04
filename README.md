@@ -1,12 +1,12 @@
 <!--
-  SPDX-FileCopyrightText: 2021-2024 The Refinery Authors <https://refinery.tools/>
+  SPDX-FileCopyrightText: 2021-2025 The Refinery Authors <https://refinery.tools/>
 
   SPDX-License-Identifier: EPL-2.0
 -->
 
 # Refinery
 
-[![Build](https://github.com/graphs4value/refinery/actions/workflows/build.yml/badge.svg)](https://github.com/graphs4value/refinery/actions/workflows/build.yml) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=graphs4value_refinery&metric=alert_status)](https://sonarcloud.io/dashboard?id=graphs4value_refinery) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=graphs4value_refinery&metric=coverage)](https://sonarcloud.io/dashboard?id=graphs4value_refinery) [![Maven Central](https://img.shields.io/maven-central/v/tools.refinery/refinery-bom?logo=apache-maven&label=Maven%20Central&color=blue)](https://central.sonatype.com/namespace/tools.refinery) [![Gradle Plugins](https://img.shields.io/gradle-plugin-portal/v/tools.refinery.settings?logo=gradle&label=Gradle%20Plugins&color=blue)](https://plugins.gradle.org/plugin/tools.refinery.settings)
+[![Build](https://github.com/graphs4value/refinery/actions/workflows/build.yml/badge.svg)](https://github.com/graphs4value/refinery/actions/workflows/build.yml) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=graphs4value_refinery&metric=alert_status)](https://sonarcloud.io/dashboard?id=graphs4value_refinery) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=graphs4value_refinery&metric=coverage)](https://sonarcloud.io/dashboard?id=graphs4value_refinery) [![Maven Central](https://img.shields.io/maven-central/v/tools.refinery/refinery-bom?logo=apache-maven&label=Maven%20Central&color=blue)](https://central.sonatype.com/namespace/tools.refinery) [![Gradle Plugins](https://img.shields.io/gradle-plugin-portal/v/tools.refinery.settings?logo=gradle&label=Gradle%20Plugins&color=blue)](https://plugins.gradle.org/plugin/tools.refinery.settings) [![npm](https://img.shields.io/npm/v/%40tools.refinery%2Fclient?logo=npm&color=blue)](https://www.npmjs.com/package/@tools.refinery/client)
 
 Refinery provides consistent graph model generation by partial model _refinement_.
 
@@ -26,7 +26,7 @@ docker run --rm -it -p 8888:8888 ghcr.io/graphs4value/refinery
 
 Once Docker pulls and starts the container, you can navigate to [http://localhost:8888](http://localhost:8888) to open the model generation interface and start editing.
 
-For more information, see [our webpage](https://refinery.tools/learn/docker/). Alternatively, you can [build Java applications with Refinery](https://refinery.tools/develop/java/) or [set up a local development environment](https://refinery.tools/develop/contributing/) to compile and run Refinery from source.
+For more information, see [our webpage](https://refinery.tools/learn/docker/). Alternatively, you can [build Java applications with Refinery](https://refinery.tools/develop/java/) or [set up a local development environment](https://refinery.tools/develop/contributing/) to compile and run Refinery from source. This repository also contains [some example scripts](./scripts/production/README.md) for a production deployment.
 
 ## Related publications
 
@@ -56,9 +56,9 @@ J. Object Technol. **19**(3): 3:1-22 (2020) [[doi](https://doi.org/10.5381/jot.2
 
 ## License
 
-Copyright (c) 2021-2024 [The Refinery Authors](CONTRIBUTORS.md)
+Copyright (c) 2021-2025 [The Refinery Authors](CONTRIBUTORS.md)
 
 Refinery is available under the [Eclipse Public License - v 2.0](https://www.eclipse.org/legal/epl-2.0/).
 
-Refinery complies with the [REUSE Specification – Version 3.2](https://reuse.software/) to provide copyright and licensing information to each file, including files available under other licenses.
+Refinery complies with the [REUSE Specification – Version 3.3](https://reuse.software/) to provide copyright and licensing information to each file, including files available under other licenses.
 For more information, see the comments headers in each file and the license texts in the [LICENSES](LICENSES/) directory.

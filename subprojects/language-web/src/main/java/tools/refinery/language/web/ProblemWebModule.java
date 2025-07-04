@@ -9,16 +9,21 @@
  */
 package tools.refinery.language.web;
 
+import com.google.inject.Binder;
 import org.eclipse.xtext.ide.ExecutorServiceProvider;
 import org.eclipse.xtext.web.server.XtextServiceDispatcher;
+import org.eclipse.xtext.web.server.hover.HoverService;
 import org.eclipse.xtext.web.server.model.IWebDocumentProvider;
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess;
 import org.eclipse.xtext.web.server.occurrences.OccurrencesService;
+import tools.refinery.language.web.hover.ProblemHoverService;
 import tools.refinery.language.web.occurrences.ProblemOccurrencesService;
 import tools.refinery.language.web.xtext.server.ThreadPoolExecutorServiceProvider;
 import tools.refinery.language.web.xtext.server.push.PushServiceDispatcher;
 import tools.refinery.language.web.xtext.server.push.PushWebDocumentAccess;
 import tools.refinery.language.web.xtext.server.push.PushWebDocumentProvider;
+
+import java.util.concurrent.ExecutorService;
 
 /**
  * Use this class to register additional components to be used within the web application.
@@ -44,5 +49,13 @@ public class ProblemWebModule extends AbstractProblemWebModule {
 
 	public Class<? extends ExecutorServiceProvider> bindExecutorServiceProvider() {
 		return ThreadPoolExecutorServiceProvider.class;
+	}
+
+	public void configureExecutorServiceProvider(Binder binder) {
+		binder.bind(ExecutorService.class).toProvider(ThreadPoolExecutorServiceProvider.class);
+	}
+
+	public Class<? extends HoverService> bindHoverService() {
+		return ProblemHoverService.class;
 	}
 }

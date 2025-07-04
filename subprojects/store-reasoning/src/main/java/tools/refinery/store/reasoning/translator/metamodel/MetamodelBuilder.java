@@ -51,6 +51,12 @@ public class MetamodelBuilder {
 		return this;
 	}
 
+	public MetamodelBuilder type(PartialRelation partialRelation, boolean abstractType, boolean decide,
+								 Collection<PartialRelation> supertypes) {
+		typeHierarchyBuilder.type(partialRelation, abstractType, decide, supertypes);
+		return this;
+	}
+
 	public MetamodelBuilder type(PartialRelation partialRelation, PartialRelation... supertypes) {
 		typeHierarchyBuilder.type(partialRelation, supertypes);
 		return this;
@@ -147,7 +153,7 @@ public class MetamodelBuilder {
 									targetType, linkType, sourceType));
 				}
 				undirectedCrossReferences.put(linkType, new UndirectedCrossReferenceInfo(sourceType,
-						info.multiplicity(), defaultValue, info.partial(), info.supersets()));
+						info.multiplicity(), defaultValue, info.concretizationSettings(), info.supersets()));
 				return;
 			}
 			oppositeReferences.put(opposite, linkType);
@@ -158,7 +164,8 @@ public class MetamodelBuilder {
 			return;
 		}
 		directedCrossReferences.put(linkType, new DirectedCrossReferenceInfo(sourceType, info.multiplicity(),
-				targetType, targetMultiplicity, defaultValue, info.partial(), info.supersets(), oppositeSupersets));
+				targetType, targetMultiplicity, defaultValue, info.concretizationSettings(), info.supersets(),
+                oppositeSupersets));
 	}
 
 	private void processContainmentInfo(PartialRelation linkType, ReferenceInfo info,
@@ -175,8 +182,12 @@ public class MetamodelBuilder {
 					.formatted(opposite, targetMultiplicity, linkType));
 		}
 		containerTypes.add(sourceType);
-		containedTypes.add(targetType);
-		containmentHierarchy.put(linkType, new ContainmentInfo(sourceType, info.multiplicity(), targetType, info.supersets(),
+		// Avoid creating a cyclic inheritance hierarchy.
+		if (!ContainmentHierarchyTranslator.CONTAINED_SYMBOL.equals(targetType)) {
+			containedTypes.add(targetType);
+		}
+		containmentHierarchy.put(linkType, new ContainmentInfo(sourceType, info.multiplicity(), targetType,
+                info.concretizationSettings().decide(), info.supersets(),
 				info.opposite() == null ? new LinkedHashSet<>() : referenceInfoMap.get(opposite).supersets()));
 	}
 
@@ -204,8 +215,8 @@ public class MetamodelBuilder {
 			throw new TranslationException(opposite, "Opposite %s of containment %s cannot be containment"
 					.formatted(opposite, linkType));
 		}
-		if (info.partial() != oppositeInfo.partial()) {
-			throw new TranslationException(opposite, "Either both %s and %s have to be partial or neither of them"
+		if (!info.concretizationSettings().equals(oppositeInfo.concretizationSettings())) {
+			throw new TranslationException(opposite, "Concretization settings of opposites %s and %s don't match"
 					.formatted(opposite, linkType));
 		}
 	}

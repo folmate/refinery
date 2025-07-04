@@ -14,10 +14,12 @@ import org.eclipse.xtext.naming.QualifiedName;
 import org.eclipse.xtext.scoping.IScope;
 import org.eclipse.xtext.scoping.IScopeProvider;
 import org.jetbrains.annotations.Nullable;
+import tools.refinery.language.documentation.DocumentationCommentParser;
 import tools.refinery.language.documentation.TypeHashProvider;
 import tools.refinery.language.model.problem.*;
 import tools.refinery.language.semantics.ProblemTrace;
 import tools.refinery.language.semantics.TracedException;
+import tools.refinery.language.utils.BuiltinAnnotationContext;
 import tools.refinery.language.utils.ProblemUtil;
 import tools.refinery.store.model.Model;
 import tools.refinery.store.reasoning.ReasoningAdapter;
@@ -30,8 +32,11 @@ import java.util.Comparator;
 import java.util.List;
 
 public class MetadataCreator {
-	private static final List<String> CLASS_PARAMETER_NAMES = List.of("node");
-	private static final List<String> RELATION_PARAMETER_NAMES = List.of("source", "target");
+	private static final List<String> CLASS_PARAMETER_NAMES = List.of(DocumentationCommentParser.CLASS_PARAMETER_NAME);
+	private static final List<String> ENUM_PARAMETER_NAMES = List.of(DocumentationCommentParser.ENUM_PARAMETER_NAME);
+	private static final List<String> REFERENCE_PARAMETER_NAMES = List.of(
+			DocumentationCommentParser.REFERENCE_SOURCE_PARAMETER_NAME,
+			DocumentationCommentParser.REFERENCE_TARGET_PARAMETER_NAME);
 
 	@Inject
 	private IScopeProvider scopeProvider;
@@ -47,6 +52,9 @@ public class MetadataCreator {
 
 	@Inject
 	private Provider<NodeMetadataFactory> nodeMetadataFactoryProvider;
+
+	@Inject
+	private BuiltinAnnotationContext builtinAnnotationContext;
 
 	private ProblemTrace problemTrace;
 	private boolean preserveNewNodes;
@@ -127,15 +135,16 @@ public class MetadataCreator {
 		var arity = partialRelation.arity();
 		var parameterNames = getParameterNames(relation);
 		var detail = getRelationDetail(relation, partialRelation);
-		return new RelationMetadata(qualifiedNameString, simpleNameString, arity, parameterNames, detail);
+		var visibility = builtinAnnotationContext.getVisibility(relation);
+		return new RelationMetadata(qualifiedNameString, simpleNameString, arity, parameterNames, detail, visibility);
 	}
 
 	@Nullable
 	private List<String> getParameterNames(Relation relation) {
 		return switch (relation) {
 			case ClassDeclaration ignored -> CLASS_PARAMETER_NAMES;
-			case EnumDeclaration ignored -> CLASS_PARAMETER_NAMES;
-			case ReferenceDeclaration ignored -> RELATION_PARAMETER_NAMES;
+			case EnumDeclaration ignored -> ENUM_PARAMETER_NAMES;
+			case ReferenceDeclaration ignored -> REFERENCE_PARAMETER_NAMES;
 			case PredicateDefinition predicateDefinition -> getPredicateParameterNames(predicateDefinition);
 			default -> null;
 		};

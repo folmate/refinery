@@ -24,7 +24,6 @@ import tools.refinery.store.reasoning.translator.typehierarchy.TypeHierarchyTran
 import tools.refinery.store.tuple.Tuple;
 
 import java.util.LinkedHashMap;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -82,30 +81,27 @@ class DefaultContainmentTest {
 						.put(Tuple.of(1, 2), TruthValue.TRUE))
 				.build();
 
-		var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed);
-		var reasoningAdapter = model.getAdapter(ReasoningAdapter.class);
-		var r1Interpretation = reasoningAdapter.getPartialInterpretation(Concreteness.PARTIAL, r1);
-		var r2Interpretation = reasoningAdapter.getPartialInterpretation(Concreteness.PARTIAL, r2);
+		try (var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed)) {
+			var reasoningAdapter = model.getAdapter(ReasoningAdapter.class);
+			var r1Interpretation = reasoningAdapter.getPartialInterpretation(Concreteness.PARTIAL, r1);
+			var r2Interpretation = reasoningAdapter.getPartialInterpretation(Concreteness.PARTIAL, r2);
 
-		assertThat(r1Interpretation.get(Tuple.of(0, 1)), is(TruthValue.TRUE));
-		assertThat(r1Interpretation.get(Tuple.of(1, 2)), is(TruthValue.FALSE));
-		assertThat(r2Interpretation.get(Tuple.of(0, 1)), is(TruthValue.FALSE));
-		assertThat(r2Interpretation.get(Tuple.of(1, 2)), is(TruthValue.TRUE));
+			assertThat(r1Interpretation.get(Tuple.of(0, 1)), is(TruthValue.TRUE));
+			assertThat(r1Interpretation.get(Tuple.of(1, 2)), is(TruthValue.FALSE));
+			assertThat(r2Interpretation.get(Tuple.of(0, 1)), is(TruthValue.FALSE));
+			assertThat(r2Interpretation.get(Tuple.of(1, 2)), is(TruthValue.TRUE));
+		}
 	}
 
 	private @NotNull LinkedHashMap<PartialRelation, ContainmentInfo> getContainmentHierarchy(boolean reverse) {
 		// Make sure the order of relations is retained.
 		var containmentHierarchy = new LinkedHashMap<PartialRelation, ContainmentInfo>();
 		if (reverse) {
-			containmentHierarchy.put(r2, new ContainmentInfo(c2, UnconstrainedMultiplicity.INSTANCE, c3, Set.of(),
-					Set.of()));
-			containmentHierarchy.put(r1, new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2, Set.of(),
-					Set.of()));
+			containmentHierarchy.put(r2, new ContainmentInfo(c2, UnconstrainedMultiplicity.INSTANCE, c3));
+			containmentHierarchy.put(r1, new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2));
 		} else {
-			containmentHierarchy.put(r1, new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2, Set.of(),
-					Set.of()));
-			containmentHierarchy.put(r2, new ContainmentInfo(c2, UnconstrainedMultiplicity.INSTANCE, c3, Set.of(),
-					Set.of()));
+			containmentHierarchy.put(r1, new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2));
+			containmentHierarchy.put(r2, new ContainmentInfo(c2, UnconstrainedMultiplicity.INSTANCE, c3));
 		}
 		return containmentHierarchy;
 	}

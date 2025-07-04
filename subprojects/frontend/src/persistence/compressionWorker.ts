@@ -57,10 +57,7 @@ let zstd: Zstd | undefined;
 
 globalThis.onmessage = (event) => {
   (async () => {
-    if (zstd === undefined) {
-      // Since we don't have types for the deep import, we have to cast here.
-      zstd = await Zstd.load();
-    }
+    zstd ??= await Zstd.load();
     // Since the render thread will only send us valid messages,
     // we can save a bit of bundle size by using a cast instead of `parse`
     // to avoid having to include `zod` in the worker.
@@ -73,6 +70,7 @@ globalThis.onmessage = (event) => {
       globalThis.postMessage({
         response: 'compressed',
         compressedText,
+        version: message.version,
       } satisfies CompressResponse);
     } else if (message.request === 'decompress') {
       const decodedBuffer = await base64Decode(message.compressedText);
@@ -82,6 +80,7 @@ globalThis.onmessage = (event) => {
       globalThis.postMessage({
         response: 'decompressed',
         text,
+        version: message.version,
       } satisfies DecompressResponse);
     } else {
       throw new Error(`Unknown request: ${JSON.stringify(event.data)}`);

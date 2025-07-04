@@ -5,16 +5,14 @@
  */
 package tools.refinery.logic.term;
 
-import tools.refinery.logic.equality.LiteralHashCodeHelper;
 import tools.refinery.logic.InvalidQueryException;
 import tools.refinery.logic.equality.LiteralEqualityHelper;
+import tools.refinery.logic.equality.LiteralHashCodeHelper;
+import tools.refinery.logic.rewriter.TermRewriter;
 import tools.refinery.logic.substitution.Substitution;
 import tools.refinery.logic.valuation.Valuation;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 // {@link Object#equals(Object)} is implemented by {@link AbstractTerm}.
 @SuppressWarnings("squid:S2160")
@@ -36,8 +34,8 @@ public abstract class BinaryTerm<R, T1, T2> extends AbstractTerm<R> {
 		}
 		this.leftType = leftType;
 		this.rightType = rightType;
-		this.left = left;
-		this.right = right;
+		this.left = left.reduce();
+		this.right = right.reduce();
 	}
 
 	public Class<T1> getLeftType() {
@@ -72,6 +70,14 @@ public abstract class BinaryTerm<R, T1, T2> extends AbstractTerm<R> {
 	protected abstract R doEvaluate(T1 leftValue, T2 rightValue);
 
 	@Override
+	public Term<R> reduce() {
+		if (left instanceof ConstantTerm<T1> constantLeft && right instanceof ConstantTerm<T2> constantRight) {
+			return new ConstantTerm<>(getType(), doEvaluate(constantLeft.getValue(), constantRight.getValue()));
+		}
+		return this;
+	}
+
+	@Override
 	public boolean equalsWithSubstitution(LiteralEqualityHelper helper, AnyTerm other) {
 		if (!super.equalsWithSubstitution(helper, other)) {
 			return false;
@@ -90,17 +96,48 @@ public abstract class BinaryTerm<R, T1, T2> extends AbstractTerm<R> {
 	}
 
 	@Override
-	public Term<R> substitute(Substitution substitution) {
-		return doSubstitute(substitution, left.substitute(substitution), right.substitute(substitution));
+	public Term<R> rewriteSubTerms(TermRewriter termRewriter) {
+		return withSubTerms(termRewriter.rewriteTerm(left), termRewriter.rewriteTerm(right));
 	}
 
-	public abstract Term<R> doSubstitute(Substitution substitution, Term<T1> substitutedLeft,
-										 Term<T2> substitutedRight);
+	@Override
+	public Term<R> substitute(Substitution substitution) {
+		return withSubTerms(left.substitute(substitution), right.substitute(substitution));
+	}
+
+	public Term<R> withSubTerms(Term<T1> newLeft, Term<T2> newRight) {
+		if (left == newLeft && right == newRight) {
+			return this;
+		}
+		return constructWithSubTerms(newLeft, newRight);
+	}
+
+	protected abstract Term<R> constructWithSubTerms(Term<T1> newLeft, Term<T2> newRight);
 
 	@Override
-	public Set<AnyDataVariable> getInputVariables() {
-		var inputVariables = new HashSet<>(left.getInputVariables());
-		inputVariables.addAll(right.getInputVariables());
+	public Set<Variable> getVariables() {
+		var variables = new LinkedHashSet<>(left.getVariables());
+		variables.addAll(right.getVariables());
+		return Collections.unmodifiableSet(variables);
+	}
+
+	@Override
+	public Set<Variable> getInputVariables(Set<? extends Variable> positiveVariablesInClause) {
+		var inputVariables = new LinkedHashSet<>(left.getInputVariables(positiveVariablesInClause));
+		inputVariables.addAll(right.getInputVariables(positiveVariablesInClause));
 		return Collections.unmodifiableSet(inputVariables);
+	}
+
+	@Override
+	public Set<Variable> getPrivateVariables(Set<? extends Variable> positiveVariablesInClause) {
+		var privateVariables = new LinkedHashSet<>(left.getPrivateVariables(positiveVariablesInClause));
+		var rightPrivateVariables = right.getPrivateVariables(positiveVariablesInClause);
+		for (var rightPrivateVariable : rightPrivateVariables) {
+			if (privateVariables.contains(rightPrivateVariable)) {
+				throw new InvalidQueryException("Private variables %s occurs of both sides of %s."
+						.formatted(rightPrivateVariable, this));
+			}
+		}
+		return Collections.unmodifiableSet(privateVariables);
 	}
 }

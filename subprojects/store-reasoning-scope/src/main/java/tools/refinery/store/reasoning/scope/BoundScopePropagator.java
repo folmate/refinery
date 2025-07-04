@@ -24,10 +24,11 @@ import tools.refinery.store.dse.propagation.PropagationRejectedResult;
 import tools.refinery.store.dse.propagation.PropagationResult;
 import tools.refinery.store.model.Interpretation;
 import tools.refinery.store.model.Model;
+import tools.refinery.store.model.ModelListener;
 import tools.refinery.store.query.ModelQueryAdapter;
 import tools.refinery.store.tuple.Tuple;
 
-class BoundScopePropagator implements BoundPropagator {
+class BoundScopePropagator implements BoundPropagator, ModelListener {
 	private final Model model;
 	private final ModelQueryAdapter queryEngine;
 	private final ScopePropagator scopePropagator;
@@ -38,6 +39,7 @@ class BoundScopePropagator implements BoundPropagator {
 	private final MutableIntSet activeVariables = IntSets.mutable.empty();
 	private final TypeScopePropagator[] propagators;
 	private boolean changed = true;
+	private boolean disposed;
 
 	public BoundScopePropagator(Model model, ScopePropagator scopePropagator) {
 		this.model = model;
@@ -45,16 +47,22 @@ class BoundScopePropagator implements BoundPropagator {
 		this.scopePropagator = scopePropagator;
 		countInterpretation = model.getInterpretation(scopePropagator.getCountSymbol());
 		solver = MPSolver.createSolver("GLOP");
-		solver.suppressOutput();
-		objective = solver.objective();
-		initializeVariables();
-		countInterpretation.addListener(this::countChanged, true);
-		var propagatorFactories = scopePropagator.getTypeScopePropagatorFactories();
-		propagators = new TypeScopePropagator[propagatorFactories.size()];
-		for (int i = 0; i < propagators.length; i++) {
-			model.checkCancelled();
-			propagators[i] = propagatorFactories.get(i).createPropagator(this);
+		try {
+			solver.suppressOutput();
+			objective = solver.objective();
+			initializeVariables();
+			countInterpretation.addListener(this::countChanged, true);
+			var propagatorFactories = scopePropagator.getTypeScopePropagatorFactories();
+			propagators = new TypeScopePropagator[propagatorFactories.size()];
+			for (int i = 0; i < propagators.length; i++) {
+				model.checkCancelled();
+				propagators[i] = propagatorFactories.get(i).createPropagator(this);
+			}
+		} catch (RuntimeException e) {
+			solver.delete();
+			throw e;
 		}
+		model.addListener(this);
 	}
 
 	ModelQueryAdapter getQueryEngine() {
@@ -83,6 +91,9 @@ class BoundScopePropagator implements BoundPropagator {
 
 	private void countChanged(Tuple key, CardinalityInterval fromValue, CardinalityInterval toValue,
 							  boolean ignoredRestoring) {
+		if (disposed) {
+			return;
+		}
 		int nodeId = key.get(0);
 		if ((toValue == null || toValue.equals(CardinalityIntervals.ONE))) {
 			if (fromValue != null && !fromValue.equals(CardinalityIntervals.ONE)) {
@@ -151,6 +162,9 @@ class BoundScopePropagator implements BoundPropagator {
 
 	@Override
 	public PropagationResult propagateOne() {
+		if (disposed) {
+			return PropagationResult.UNCHANGED;
+		}
 		queryEngine.flushChanges();
 		if (!changed) {
 			return PropagationResult.UNCHANGED;
@@ -268,5 +282,21 @@ class BoundScopePropagator implements BoundPropagator {
 		} else {
 			throw new IllegalArgumentException("Unknown upper bound: " + upperBound);
 		}
+	}
+
+	@Override
+	public void beforeClose() {
+		if (solver == null || disposed) {
+			return;
+		}
+		objective.delete();
+		for (var propagator : propagators) {
+			propagator.delete();
+		}
+		for (var variable : variables.values()) {
+			variable.delete();
+		}
+		solver.delete();
+		disposed = true;
 	}
 }

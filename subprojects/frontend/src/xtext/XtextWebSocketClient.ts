@@ -7,13 +7,14 @@
 import { createAtom, makeAutoObservable, observable } from 'mobx';
 import ms from 'ms';
 import { nanoid } from 'nanoid';
+import sjson from 'secure-json-parse';
 import { interpret } from 'xstate';
 
 import CancelledError from '../utils/CancelledError';
 import PendingTask from '../utils/PendingTask';
 import getLogger from '../utils/getLogger';
 
-import fetchBackendConfig from './fetchBackendConfig';
+import type { BackendConfigWithDefaults } from './fetchBackendConfig';
 import webSocketMachine from './webSocketMachine';
 import {
   type XtextWebPushService,
@@ -22,7 +23,7 @@ import {
 } from './xtextMessages';
 import { PongResult } from './xtextServiceResults';
 
-const XTEXT_SUBPROTOCOL_V1 = 'tools.refinery.language.web.xtext.v1';
+const XTEXT_SUBPROTOCOL_V2 = 'tools.refinery.language.web.xtext.v2';
 
 // Use a large enough timeout so that a request can complete successfully
 // even if the browser has throttled the background tab.
@@ -62,7 +63,7 @@ export default class XtextWebSocketClient {
       },
     }),
     {
-      logger: log.log.bind(log),
+      logger: log.info.bind(log),
     },
   );
 
@@ -73,7 +74,7 @@ export default class XtextWebSocketClient {
     const {
       webSocket: { protocol },
     } = this;
-    if (protocol === XTEXT_SUBPROTOCOL_V1) {
+    if (protocol === XTEXT_SUBPROTOCOL_V2) {
       this.interpreter.send('OPENED');
     } else {
       this.interpreter.send({
@@ -104,15 +105,21 @@ export default class XtextWebSocketClient {
     }
     let json: unknown;
     try {
-      json = JSON.parse(data);
-    } catch (error) {
-      log.error('JSON parse error', error);
+      json = sjson.parse(data, undefined, {
+        constructorAction: 'error',
+        protoAction: 'error',
+      });
+    } catch (err) {
+      log.error({ err }, 'JSON parse error');
       this.interpreter.send({ type: 'ERROR', message: 'Malformed message' });
       return;
     }
     const responseResult = XtextResponse.safeParse(json);
     if (!responseResult.success) {
-      log.error('Xtext response', json, 'is malformed:', responseResult.error);
+      log.error(
+        { err: responseResult.error, response: json },
+        'Malformed Xtext response',
+      );
       this.interpreter.send({ type: 'ERROR', message: 'Malformed message' });
       return;
     }
@@ -126,13 +133,13 @@ export default class XtextWebSocketClient {
     const { id } = response;
     const task = this.pendingRequests.get(id);
     if (task === undefined) {
-      log.warn('Task', id, 'has been already resolved');
+      log.warn('Task %s has been already resolved', id);
       return;
     }
     this.removeTask(id);
     if ('error' in response) {
       const formattedMessage = `${response.error} error: ${response.message}`;
-      log.error('Task', id, formattedMessage);
+      log.error({ response }, 'Task %s failed: %s', id, formattedMessage);
       task.reject(new Error(formattedMessage));
     } else {
       task.resolve(response.response);
@@ -140,6 +147,7 @@ export default class XtextWebSocketClient {
   };
 
   constructor(
+    private readonly backendConfig: BackendConfigWithDefaults,
     private readonly onReconnect: ReconnectHandler,
     private readonly onDisconnect: DisconnectHandler,
     private readonly onPush: PushHandler,
@@ -171,7 +179,11 @@ export default class XtextWebSocketClient {
   start(): void {
     this.interpreter
       .onTransition((state, event) => {
-        log.trace('WebSocke state transition', state.value, 'on event', event);
+        log.trace(
+          'WebSocket state transition %s on events %s',
+          state.value,
+          event,
+        );
         this.stateAtom.reportChanged();
       })
       .start();
@@ -287,24 +299,10 @@ export default class XtextWebSocketClient {
 
     log.debug('Creating WebSocket');
 
-    (async () => {
-      let { webSocketURL } = await fetchBackendConfig();
-      if (webSocketURL === undefined) {
-        webSocketURL = `${window.origin.replace(/^http/, 'ws')}/xtext-service`;
-      }
-      this.openWebSocketWithURL(webSocketURL);
-    })().catch((error) => {
-      log.error('Error while initializing connection', error);
-      const message = error instanceof Error ? error.message : String(error);
-      this.interpreter.send({
-        type: 'ERROR',
-        message,
-      });
-    });
-  }
-
-  private openWebSocketWithURL(webSocketURL: string): void {
-    this.webSocket = new WebSocket(webSocketURL, XTEXT_SUBPROTOCOL_V1);
+    this.webSocket = new WebSocket(
+      this.backendConfig.webSocketURL,
+      XTEXT_SUBPROTOCOL_V2,
+    );
     this.webSocket.addEventListener('open', this.openListener);
     this.webSocket.addEventListener('close', this.closeListener);
     this.webSocket.addEventListener('error', this.errorListener);

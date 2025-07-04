@@ -22,7 +22,7 @@ import {
   FormattingResult,
   isConflictResult,
   OccurrencesResult,
-  ModelGenerationStartedResult,
+  HoverResult,
 } from './xtextServiceResults';
 
 const UPDATE_TIMEOUT_MS = 500;
@@ -72,15 +72,15 @@ export default class UpdateService {
 
   onReconnect(): void {
     this.tracker.invalidateStateId();
-    this.updateFullTextOrThrow().catch((error) => {
+    this.updateFullTextOrThrow().catch((err: unknown) => {
       // Let E_TIMEOUT errors propagate, since if the first update times out,
       // we can't use the connection.
-      if (error instanceof CancelledError) {
+      if (err instanceof CancelledError) {
         // Content assist will perform a full-text update anyways.
         log.debug('Full text update cancelled');
         return;
       }
-      log.error('Unexpected error during initial update', error);
+      log.error({ err }, 'Unexpected error during initial update');
     });
   }
 
@@ -99,12 +99,12 @@ export default class UpdateService {
       return;
     }
     if (!this.tracker.lockedForUpdate) {
-      this.updateOrThrow().catch((error) => {
-        if (error instanceof CancelledError || error instanceof TimeoutError) {
+      this.updateOrThrow().catch((err: unknown) => {
+        if (err instanceof CancelledError || err instanceof TimeoutError) {
           log.debug('Idle update cancelled');
           return;
         }
-        log.error('Unexpected error during scheduled update', error);
+        log.error({ err }, 'Unexpected error during scheduled update');
       });
     }
     this.idleUpdateLater();
@@ -135,7 +135,7 @@ export default class UpdateService {
     if (delta === undefined) {
       return;
     }
-    log.trace('Editor delta', delta);
+    log.trace({ delta }, 'Editor delta');
     this.store.analysisStarted();
     const result = await this.webSocketClient.send({
       resource: this.resourceName,
@@ -196,7 +196,7 @@ export default class UpdateService {
       deltaText: '',
     };
     const { concretize } = this.store;
-    log.trace('Editor delta', delta, 'with concretize', concretize);
+    log.trace({ delta }, 'Editor delta with concretize: %s', concretize);
     this.store.analysisStarted();
     const result = await this.webSocketClient.send({
       resource: this.resourceName,
@@ -271,7 +271,7 @@ export default class UpdateService {
     if (delta === undefined) {
       return undefined;
     }
-    log.trace('Editor delta for content assist', delta);
+    log.trace({ delta }, 'Editor delta for content assist');
     const fetchUpdateResult = await this.webSocketClient.send({
       ...params,
       resource: this.resourceName,
@@ -328,7 +328,7 @@ export default class UpdateService {
       from = 0;
       to = this.store.state.doc.length;
     }
-    log.debug('Formatting from', from, 'to', to);
+    log.debug('Formatting from %d to %d', from, to);
     const result = await this.webSocketClient.send({
       resource: this.resourceName,
       serviceType: 'format',
@@ -382,9 +382,9 @@ export default class UpdateService {
     return { cancelled: false, data: parsedOccurrencesResult };
   }
 
-  async startModelGeneration(
-    randomSeed: number,
-  ): Promise<CancellableResult<ModelGenerationStartedResult>> {
+  async fetchHoverTooltip(
+    caretOffset: number,
+  ): Promise<CancellableResult<HoverResult>> {
     try {
       await this.updateOrThrow();
     } catch (error) {
@@ -393,31 +393,27 @@ export default class UpdateService {
       }
       throw error;
     }
-    log.debug('Starting model generation');
-    const data = await this.webSocketClient.send({
-      resource: this.resourceName,
-      serviceType: 'modelGeneration',
-      requiredStateId: this.xtextStateId,
-      start: true,
-      randomSeed,
-    });
-    if (isConflictResult(data)) {
+    const expectedStateId = this.xtextStateId;
+    if (expectedStateId === undefined || this.tracker.hasPendingChanges) {
+      // Just give up if another update is in progress.
       return { cancelled: true };
     }
-    const parsedResult = ModelGenerationStartedResult.parse(data);
-    return { cancelled: false, data: parsedResult };
-  }
-
-  async cancelModelGeneration(): Promise<CancellableResult<unknown>> {
-    log.debug('Cancelling model generation');
     const data = await this.webSocketClient.send({
       resource: this.resourceName,
-      serviceType: 'modelGeneration',
-      cancel: true,
+      serviceType: 'hover',
+      caretOffset,
+      expectedStateId,
     });
-    if (isConflictResult(data)) {
+    if (
+      isConflictResult(data) ||
+      this.tracker.hasChangesSince(expectedStateId)
+    ) {
       return { cancelled: true };
     }
-    return { cancelled: false, data };
+    const parsedHoverResult = HoverResult.parse(data);
+    if (parsedHoverResult.stateId !== expectedStateId) {
+      return { cancelled: true };
+    }
+    return { cancelled: false, data: parsedHoverResult };
   }
 }

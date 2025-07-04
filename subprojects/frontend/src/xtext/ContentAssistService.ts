@@ -9,14 +9,13 @@ import type {
   CompletionContext,
   CompletionResult,
 } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
 import type { Transaction } from '@codemirror/state';
 import escapeStringRegexp from 'escape-string-regexp';
 
-import { implicitCompletion } from '../language/props';
 import getLogger from '../utils/getLogger';
 
 import type UpdateService from './UpdateService';
+import findToken, { type FoundToken } from './findToken';
 import type { ContentAssistEntry } from './xtextServiceResults';
 
 const PROPOSALS_LIMIT = 1000;
@@ -27,53 +26,8 @@ const HIGH_PRIORITY_KEYWORDS = ['<->', '->', '==>'];
 
 const log = getLogger('xtext.ContentAssistService');
 
-interface IFoundToken {
-  from: number;
-
-  to: number;
-
-  implicitCompletion: boolean;
-
-  text: string;
-}
-
-function findToken({ pos, state }: CompletionContext): IFoundToken | undefined {
-  const token = syntaxTree(state).resolveInner(pos, -1);
-  const { from } = token;
-  if (from > pos) {
-    // We haven't found the token we want to complete.
-    // Complete with an empty prefix from `pos` instead.
-    // The other `return undefined;` lines also handle this condition.
-    return undefined;
-  }
-  // We look at the text at the beginning of the token.
-  // For QualifiedName tokens right before a comment, this may be a comment token.
-  const endIndex = token.firstChild?.from ?? token.to;
-  if (pos > endIndex) {
-    return undefined;
-  }
-  const text = state.sliceDoc(from, endIndex).trimEnd();
-  // Due to parser error recovery, we may get spurious whitespace
-  // at the end of the token.
-  const to = from + text.length;
-  if (to > endIndex) {
-    return undefined;
-  }
-  if (from > pos || endIndex < pos) {
-    // We haven't found the token we want to complete.
-    // Complete with an empty prefix from `pos` instead.
-    return undefined;
-  }
-  return {
-    from,
-    to,
-    implicitCompletion: token.type.prop(implicitCompletion) ?? false,
-    text,
-  };
-}
-
 function shouldCompleteImplicitly(
-  token: IFoundToken | undefined,
+  token: FoundToken | undefined,
   context: CompletionContext,
 ): boolean {
   return (
@@ -96,12 +50,24 @@ function computeSpan(prefix: string, entryCount: number): RegExp {
   return new RegExp(`^${escapedPrefix}$`);
 }
 
-function createCompletion(entry: ContentAssistEntry): Completion {
+function createCompletion(
+  prefix: string,
+  entry: ContentAssistEntry,
+): Completion | undefined {
+  if (!prefix.endsWith(entry.prefix)) {
+    // Since CodeMirror will fuzzy match all entries, we only work with completions that match
+    // some suffix of the current prefix according to Xtext. The remaining part of the prefix
+    // will be added to each completion using `remainingPrefix` to make the fuzzy match successful
+    // and avoid replacing the current prefix in the editor.
+    return undefined;
+  }
   let boost: number;
+  let type: string | undefined;
   switch (entry.kind) {
     case 'KEYWORD':
       // Some hard-to-type operators should be on top.
       boost = HIGH_PRIORITY_KEYWORDS.includes(entry.proposal) ? 10 : -99;
+      type = /^[a-z]+$/.test(entry.proposal) ? 'keyword' : 'operator';
       break;
     case 'TEXT':
     case 'SNIPPET':
@@ -119,18 +85,55 @@ function createCompletion(entry: ContentAssistEntry): Completion {
       }
       break;
   }
+  // The server thinks this part of the prefix is not needed, but we need to add it back to satisfy CodeMirror.
+  const remainingPrefix = prefix.slice(0, prefix.length - entry.prefix.length);
   const completion: Completion = {
-    label: entry.proposal,
-    type: entry.kind?.toLowerCase(),
+    label: remainingPrefix + entry.proposal,
+    displayLabel: entry.proposal,
+    type: type ?? entry.kind,
     boost,
   };
   if (entry.documentation !== undefined) {
-    completion.info = entry.documentation;
+    const { documentation } = entry;
+    completion.info = async () => {
+      const { default: transformDocumentation } = await import(
+        './transformDocumentation'
+      );
+      return transformDocumentation(documentation);
+    };
   }
   if (entry.description !== undefined) {
-    completion.detail = entry.description;
+    const { description } = entry;
+    completion.detail = description.startsWith('/')
+      ? description
+      : `\u00a0${description}`;
   }
   return completion;
+}
+
+function getMatch(
+  completion: Completion,
+  matched?: readonly number[],
+): readonly number[] {
+  if (matched === undefined || matched.length < 2) {
+    return [];
+  }
+  if (completion.displayLabel === undefined) {
+    return matched;
+  }
+  const adjustment = completion.label.length - completion.displayLabel.length;
+  if (adjustment <= 0) {
+    return matched;
+  }
+  const adjusted: number[] = [];
+  for (let i = 0; i < matched.length; i += 2) {
+    const start = Math.max(0, matched[i]! - adjustment);
+    const end = matched[i + 1]! - adjustment;
+    if (end >= 1) {
+      adjusted.push(start, end);
+    }
+  }
+  return adjusted;
 }
 
 export default class ContentAssistService {
@@ -152,7 +155,7 @@ export default class ContentAssistService {
         options: [],
       };
     }
-    const tokenBefore = findToken(context);
+    const tokenBefore = findToken(context.pos, context.state);
     if (!context.explicit && !shouldCompleteImplicitly(tokenBefore, context)) {
       return {
         from: context.pos,
@@ -205,18 +208,17 @@ export default class ContentAssistService {
     }
     const options: Completion[] = [];
     entries.forEach((entry) => {
-      if (prefix === entry.prefix) {
-        // Xtext will generate completions that do not complete the current token,
-        // e.g., `(` after trying to complete an indetifier,
-        // but we ignore those, since CodeMirror won't filter for them anyways.
-        options.push(createCompletion(entry));
+      const completion = createCompletion(prefix, entry);
+      if (completion !== undefined) {
+        options.push(completion);
       }
     });
-    log.debug('Fetched', options.length, 'completions from server');
+    log.debug('Fetched %s completions from server', options.length);
     this.lastCompletion = {
       ...range,
       options,
       validFor: computeSpan(prefix, entries.length),
+      getMatch,
     };
     return this.lastCompletion;
   }
@@ -259,12 +261,12 @@ export default class ContentAssistService {
         lastFrom,
         lastTo,
       );
-    } catch (error) {
-      if (error instanceof RangeError) {
-        log.debug('Invalidating cache due to invalid range', error);
+    } catch (err) {
+      if (err instanceof RangeError) {
+        log.debug({ err }, 'Invalidating cache due to invalid range');
         return true;
       }
-      throw error;
+      throw err;
     }
     let invalidate = false;
     transaction.changes.iterChangedRanges((fromA, toA) => {

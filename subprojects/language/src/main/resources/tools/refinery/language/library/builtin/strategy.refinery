@@ -1,0 +1,115 @@
+% SPDX-FileCopyrightText: 2024-2025 The Refinery Authors <https://refinery.tools/>
+%
+% SPDX-License-Identifier: EPL-2.0
+
+import builtin::annotations.
+
+/**
+ * Makes a decision rule parameter to match multi-objects and split off an
+ * object from a multi-object whenever the rule is executed.
+ *
+ * If the parameter matches a single object, no new object will be created, but
+ * the postcondition of the decision rule will still be executed.
+ *
+ * Two `@focus` parameters can't match the same concrete object, i.e., they're
+ * always matched _monomorphically_. However, it's possible to match the same
+ * multi-object several times and split off several distinct objects from it.
+ */
+#pred focus().
+
+/**
+ * Allows a decision rule parameter to match objects that do not necessarily
+ * exist.
+ *
+ * By default, decision rules parameters can only match objects that are _not_
+ * multi-objects to avoid decisions that don't refine the model productively.
+ */
+#pred lone().
+
+/**
+ * Allows a decision rule parameter to match multi-objects.
+ *
+ * The postcondition of the rule will be executed without splitting of an
+ * object from the multi-object and will affect all objects represented by the
+ * multi-object simultaneously.
+ *
+ * The postcondition can't contain assertions where the parameter appears more
+ * than once, e.g., `reference(multi, multi)`, because the partial model can't
+ * represent such effects faithfully.
+ *
+ * By default, decision rules parameters can only match objects that are _not_
+ * multi-objects to avoid decisions that don't refine the model productively.
+ */
+#pred multi().
+
+/**
+ * Enables or disables automatic concretization for a relation.
+ *
+ * Setting `@concretize(false)` also implies `@decide(false)` unless a value
+ * for `@decide` is also set manually.
+ *
+ * @param auto `true` if `unknown` values should be automatically replaced with
+ *             `false`, `false` otherwise.
+ *
+ *             Default value: `true`.
+ */
+#pred concretize(@optional boolean auto).
+
+/**
+ * Enables or disables automatic decisions for a relation.
+ *
+ * Set `@decide(false)` to disable automatically created decision rules without
+ * disabling concretization.
+ *
+ * Disabling automatically created decision rules for a class will also prevent
+ * the focusing of multi-objects that are instances of the class. This setting
+ * will be inherited by (directly or indirectly) extending classes and will
+ * prevent re-enabling automatically created decision rules.
+ *
+ * Set `@decide(true)` along with `@concretize(false)` to disable automatic
+ * concretization without disabling automatically created decision rules.
+ *
+ * @param auto `true` if a decision rule that sets the value of the target
+ *             predicate to `true` should be created automatically.
+ *
+ *             Default value: `true`.
+ */
+#pred decide(@optional boolean auto).
+
+/**
+ * Sets the priority of a decision rule.
+ *
+ * A decision rule is only enabled if no decision with strictly higher priority
+ * (i.e., one with `value` set to a _larger_ integer)
+ * has a precondition that holds in the partial model. In other words, higher
+ * priority rules disable lower priority rules.
+ *
+ * Automatically created decision rules always have `@priority(0)`, but you can
+ * set `@decide(false)` to disable them outright. Custom decision rules with
+ * priority larger than or equal to 1 disable automatically generated decision
+ * rules only if their precondition holds in the partial model.
+ *
+ * @param value The priority to set.
+ */
+#pred priority(int value).
+
+/**
+ * Sets the weight function of a decision rule.
+ *
+ * If a decision rule has `n` unvisited activations (precondition matches), its
+ * weight will be set to `c * n^k`, i.e., each activation has a probability of
+ * being selected for firing proportional to `c * n^(k - 1)`, where `c` is the
+ * value of the `coefficient` argument and `k` is the value of the `exponent`
+ * argument.
+ *
+ * To use this annotation, at least one of `coefficient` and `exponent` must be
+ * specified.
+ *
+ * @param coefficient The scaling factor `c` of the weight. Must be positive.
+ *
+ *                    Default value: `1.0`.
+ * @param exponent    The exponent `k` of the weight. Must be non-negative.
+ *
+ *                    Default value: `1.0`.
+ */
+#pred weight(@optional real coefficient, @optional real exponent).

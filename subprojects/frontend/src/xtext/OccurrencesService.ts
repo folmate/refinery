@@ -100,13 +100,13 @@ export default class OccurrencesService {
   }
 
   private findOccurrences() {
-    this.updateOccurrences().catch((error) => {
-      log.error('Unexpected error while updating occurrences', error);
+    this.updateOccurrences().catch((err: unknown) => {
+      log.error({ err }, 'Unexpected error while updating occurrences');
       this.clearOccurrences();
     });
   }
 
-  private async updateOccurrences() {
+  private async updateOccurrences(pos?: number, goToFirst = false) {
     if (!this.needsOccurrences || !this.updateService.opened) {
       this.clearOccurrences();
       return;
@@ -115,7 +115,7 @@ export default class OccurrencesService {
       return this.needsOccurrences
         ? {
             cancelled: false,
-            data: this.store.state.selection.main.head,
+            data: pos ?? this.store.state.selection.main.head,
           }
         : { cancelled: true };
     });
@@ -135,12 +135,14 @@ export default class OccurrencesService {
     const read = transformOccurrences(readRegions);
     this.hasOccurrences = write.length > 0 || read.length > 0;
     log.debug(
-      'Found',
+      'Found %d write and %d read occurrences',
       write.length,
-      'write and',
       read.length,
-      'read occurrences',
     );
-    this.store.updateOccurrences(write, read);
+    this.store.updateOccurrences(write, read, goToFirst, pos);
+  }
+
+  goToDefinition(pos?: number): Promise<void> {
+    return this.updateOccurrences(pos, true);
   }
 }

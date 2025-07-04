@@ -7,6 +7,8 @@ package tools.refinery.store.reasoning.translator.containment;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.refinery.logic.term.cardinalityinterval.CardinalityIntervals;
+import tools.refinery.logic.term.truthvalue.TruthValue;
 import tools.refinery.store.model.ModelStore;
 import tools.refinery.store.query.interpreter.QueryInterpreterAdapter;
 import tools.refinery.store.reasoning.ReasoningAdapter;
@@ -18,12 +20,9 @@ import tools.refinery.store.reasoning.translator.multiobject.MultiObjectTranslat
 import tools.refinery.store.reasoning.translator.multiplicity.UnconstrainedMultiplicity;
 import tools.refinery.store.reasoning.translator.typehierarchy.TypeHierarchy;
 import tools.refinery.store.reasoning.translator.typehierarchy.TypeHierarchyTranslator;
-import tools.refinery.logic.term.truthvalue.TruthValue;
-import tools.refinery.logic.term.cardinalityinterval.CardinalityIntervals;
 import tools.refinery.store.tuple.Tuple;
 
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +48,7 @@ class ContainmentHierarchyTranslatorTest {
 
 		var containmentHierarchy = Map.of(
 				entry,
-				new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2, Set.of(), Set.of())
+				new ContainmentInfo(c1, UnconstrainedMultiplicity.INSTANCE, c2)
 		);
 
 		store = ModelStore.builder()
@@ -80,19 +79,20 @@ class ContainmentHierarchyTranslatorTest {
 						.put(Tuple.of(0, 2), TruthValue.TRUE))
 				.build();
 
-		var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed);
-		var interpretation = model.getAdapter(ReasoningAdapter.class).getPartialInterpretation(Concreteness.PARTIAL,
-				entry);
+		try (var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed)) {
+			var interpretation = model.getAdapter(ReasoningAdapter.class).getPartialInterpretation(
+					Concreteness.PARTIAL, entry);
 
-		assertThat(interpretation.get(Tuple.of(0, 0)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(0, 1)), is(TruthValue.TRUE));
-		assertThat(interpretation.get(Tuple.of(0, 2)), is(TruthValue.TRUE));
-		assertThat(interpretation.get(Tuple.of(1, 0)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(1, 1)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(1, 2)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(2, 0)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(2, 1)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(2, 2)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(0, 0)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(0, 1)), is(TruthValue.TRUE));
+			assertThat(interpretation.get(Tuple.of(0, 2)), is(TruthValue.TRUE));
+			assertThat(interpretation.get(Tuple.of(1, 0)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(1, 1)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(1, 2)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(2, 0)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(2, 1)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(2, 2)), is(TruthValue.FALSE));
+		}
 	}
 
 	@Test
@@ -114,18 +114,19 @@ class ContainmentHierarchyTranslatorTest {
 						.put(Tuple.of(2, 0), TruthValue.TRUE))
 				.build();
 
-		var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed);
-		var interpretation = model.getAdapter(ReasoningAdapter.class).getPartialInterpretation(Concreteness.PARTIAL,
-				entry);
+		try (var model = store.getAdapter(ReasoningStoreAdapter.class).createInitialModel(modelSeed)) {
+			var interpretation = model.getAdapter(ReasoningAdapter.class).getPartialInterpretation(
+					Concreteness.PARTIAL, entry);
 
-		assertThat(interpretation.get(Tuple.of(0, 0)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(0, 1)), is(TruthValue.ERROR));
-		assertThat(interpretation.get(Tuple.of(0, 2)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(1, 0)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(1, 1)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(1, 2)), is(TruthValue.ERROR));
-		assertThat(interpretation.get(Tuple.of(2, 0)), is(TruthValue.ERROR));
-		assertThat(interpretation.get(Tuple.of(2, 1)), is(TruthValue.FALSE));
-		assertThat(interpretation.get(Tuple.of(2, 2)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(0, 0)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(0, 1)), is(TruthValue.ERROR));
+			assertThat(interpretation.get(Tuple.of(0, 2)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(1, 0)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(1, 1)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(1, 2)), is(TruthValue.ERROR));
+			assertThat(interpretation.get(Tuple.of(2, 0)), is(TruthValue.ERROR));
+			assertThat(interpretation.get(Tuple.of(2, 1)), is(TruthValue.FALSE));
+			assertThat(interpretation.get(Tuple.of(2, 2)), is(TruthValue.FALSE));
+		}
 	}
 }

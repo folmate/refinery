@@ -59,7 +59,7 @@ function useWindowControlsOverlayVisible(): boolean {
   return windowControlsOverlayVisible;
 }
 
-function RefineryIcon({ size }: { size: number }): JSX.Element {
+function RefineryIcon({ size }: { size: number }): React.ReactElement {
   const theme = useTheme();
   return (
     <svg
@@ -122,8 +122,8 @@ const ButtonStack = styled(Stack)({
   },
 });
 
-export default observer(function TopBar(): JSX.Element {
-  const { editorStore, themeStore } = useRootStore();
+export default observer(function TopBar(): React.ReactElement {
+  const { editorStore, themeStore, hasChat } = useRootStore();
   const overlayVisible = useWindowControlsOverlayVisible();
   const { breakpoints } = useTheme();
   const medium = useMediaQuery(breakpoints.up('sm'));
@@ -171,7 +171,7 @@ export default observer(function TopBar(): JSX.Element {
         )}
         <Stack direction="row" alignItems="center" flexGrow={1} marginLeft={1}>
           {medium && !large && (
-            <PaneButtons themeStore={themeStore} hideLabel />
+            <PaneButtons themeStore={themeStore} hasChat={hasChat} hideLabel />
           )}
         </Stack>
         {large && (
@@ -186,7 +186,7 @@ export default observer(function TopBar(): JSX.Element {
               transform: 'translateX(-50%)',
             }}
           >
-            <PaneButtons themeStore={themeStore} />
+            <PaneButtons themeStore={themeStore} hasChat={hasChat} />
           </Stack>
         )}
         <Stack direction="row" marginLeft={1} gap={1} alignItems="center">

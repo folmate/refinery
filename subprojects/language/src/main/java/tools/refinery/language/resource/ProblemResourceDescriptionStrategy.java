@@ -10,6 +10,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.xtext.EcoreUtil2;
+import org.eclipse.xtext.documentation.IEObjectDocumentationProvider;
 import org.eclipse.xtext.naming.IQualifiedNameConverter;
 import org.eclipse.xtext.naming.IQualifiedNameProvider;
 import org.eclipse.xtext.naming.QualifiedName;
@@ -40,6 +41,7 @@ public class ProblemResourceDescriptionStrategy extends DefaultResourceDescripti
 	public static final String SHADOWING_KEY_NODE = "node";
 	public static final String SHADOWING_KEY_RELATION = "relation";
 	public static final String SHADOWING_KEY_AGGREGATOR = "aggregator";
+	public static final String SHADOWING_KEY_ANNOTATION = "annotation";
 	public static final String PREFERRED_NAME = DATA_PREFIX + "PREFERRED_NAME";
 	public static final String PREFERRED_NAME_TRUE = "true";
 	public static final String IMPORTS = DATA_PREFIX + "IMPORTS";
@@ -47,8 +49,16 @@ public class ProblemResourceDescriptionStrategy extends DefaultResourceDescripti
 	public static final String MODULE_KIND = DATA_PREFIX + "MODULE_KIND";
 	public static final String COLOR_RELATION = DATA_PREFIX + "COLOR_RELATION";
 	public static final String COLOR_RELATION_TRUE = "true";
-	public static final String SHADOW_PREDICATE = DATA_PREFIX + "COMPUTED_VALUE";
+	public static final String SHADOW_PREDICATE = DATA_PREFIX + "SHADOW_PREDICATE";
 	public static final String SHADOW_PREDICATE_TRUE = "true";
+	public static final String ABSTRACT = DATA_PREFIX + "ABSTRACT";
+	public static final String ABSTRACT_TRUE = "true";
+	public static final String CONTAINMENT = DATA_PREFIX + "CONTAINMENT";
+	public static final String CONTAINMENT_TRUE = "true";
+	public static final String ATOM = DATA_PREFIX + "ATOM";
+	public static final String ATOM_TRUE = "true";
+	public static final String MULTI = DATA_PREFIX + "MULTI";
+	public static final String MULTI_TRUE = "true";
 
 	@Inject
 	private IQualifiedNameConverter qualifiedNameConverter;
@@ -61,6 +71,9 @@ public class ProblemResourceDescriptionStrategy extends DefaultResourceDescripti
 
 	@Inject
 	private DocumentationCommentParser documentationCommentParser;
+
+	@Inject
+	private IEObjectDocumentationProvider documentationProvider;
 
 	@Override
 	public boolean createEObjectDescriptions(EObject eObject, IAcceptor<IEObjectDescription> acceptor) {
@@ -149,19 +162,17 @@ public class ProblemResourceDescriptionStrategy extends DefaultResourceDescripti
 					.collect(Collectors.joining(IMPORTS_SEPARATOR));
 			builder.put(IMPORTS, importsString);
 			builder.put(MODULE_KIND, problem.getKind().getName());
-		} else if (eObject instanceof Node) {
-			builder.put(SHADOWING_KEY, SHADOWING_KEY_NODE);
+		} else if (eObject instanceof Node node) {
+			addNodeUserData(node, builder);
 		} else if (eObject instanceof Relation relation) {
-			builder.put(SHADOWING_KEY, SHADOWING_KEY_RELATION);
-			builder.put(ARITY, Integer.toString(ProblemUtil.getArityWithoutProxyResolution(relation), 10));
-			if (ProblemUtil.isTypeLike(relation)) {
-				builder.put(TYPE_LIKE, TYPE_LIKE_TRUE);
-			}
+			addRelationUserData(relation, builder);
 		} else if (eObject instanceof RuleDefinition) {
 			// Rule definitions and predicates live in the same namespace.
 			builder.put(SHADOWING_KEY, SHADOWING_KEY_RELATION);
 		} else if (eObject instanceof AggregatorDeclaration) {
 			builder.put(SHADOWING_KEY, SHADOWING_KEY_AGGREGATOR);
+		} else if (eObject instanceof AnnotationDeclaration) {
+			builder.put(SHADOWING_KEY, SHADOWING_KEY_ANNOTATION);
 		}
 		if (ProblemUtil.isError(eObject)) {
 			builder.put(ERROR_PREDICATE, ERROR_PREDICATE_TRUE);
@@ -172,6 +183,31 @@ public class ProblemResourceDescriptionStrategy extends DefaultResourceDescripti
 		var documentationMap = documentationCommentParser.parseDocumentation(eObject);
 		builder.putAll(documentationMap);
 		return builder.build();
+	}
+
+	private static void addNodeUserData(Node node, ImmutableMap.Builder<String, String> builder) {
+		builder.put(SHADOWING_KEY, SHADOWING_KEY_NODE);
+		if (ProblemUtil.isAtomNode(node)) {
+			builder.put(ATOM, ATOM_TRUE);
+		}
+		if (ProblemUtil.isMultiNode(node)) {
+			builder.put(MULTI, MULTI_TRUE);
+		}
+	}
+
+	private static void addRelationUserData(Relation relation, ImmutableMap.Builder<String, String> builder) {
+		builder.put(SHADOWING_KEY, SHADOWING_KEY_RELATION);
+		builder.put(ARITY, Integer.toString(ProblemUtil.getArityWithoutProxyResolution(relation), 10));
+		if (ProblemUtil.isTypeLike(relation)) {
+			builder.put(TYPE_LIKE, TYPE_LIKE_TRUE);
+		}
+		if (relation instanceof ClassDeclaration classDeclaration && classDeclaration.isAbstract()) {
+			builder.put(ABSTRACT, ABSTRACT_TRUE);
+		}
+		if (relation instanceof ReferenceDeclaration referenceDeclaration &&
+				ProblemUtil.isContainmentReference(referenceDeclaration)) {
+			builder.put(CONTAINMENT, CONTAINMENT_TRUE);
+		}
 	}
 
 	protected boolean shouldExportSimpleName(EObject eObject) {

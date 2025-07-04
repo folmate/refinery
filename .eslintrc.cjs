@@ -10,6 +10,7 @@ const path = require('node:path');
 // Allow the Codium ESLint plugin to find `tsconfig.json` from the repository root.
 const project = [
   path.join(__dirname, 'tsconfig.json'),
+  path.join(__dirname, 'subprojects/client-js/tsconfig.json'),
   path.join(__dirname, 'subprojects/docs/tsconfig.json'),
   path.join(__dirname, 'subprojects/frontend/tsconfig.json'),
   path.join(__dirname, 'subprojects/frontend/tsconfig.node.json'),
@@ -43,6 +44,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended-type-checked',
     'plugin:@typescript-eslint/stylistic-type-checked',
     'plugin:import/recommended',
+    'plugin:import/typescript',
     'plugin:jsx-a11y/recommended',
     'plugin:mobx/recommended',
     'plugin:prettier/recommended',
@@ -50,7 +52,7 @@ module.exports = {
     'plugin:react-hooks/recommended',
   ],
   parserOptions: {
-    project,
+    projectService: true,
     sourceType: 'module',
   },
   parser: '@typescript-eslint/parser',
@@ -61,6 +63,7 @@ module.exports = {
     'import/resolver': {
       typescript: {
         alwaysTryTypes: true,
+        noWarnOnMultipleProjects: true,
         project,
       },
     },
@@ -74,6 +77,7 @@ module.exports = {
   ignorePatterns: [
     'build/**/*',
     'subprojects/*/build/**/*',
+    'subprojects/*/dist/**/*',
     'subprojects/docs/.docusaurus/**/*',
     'subprojects/docs/.yarn/**/*',
     'subprojects/frontend/dev-dist/**/*',
@@ -124,6 +128,11 @@ module.exports = {
     'react/react-in-jsx-scope': 'off',
     // `defaultProps` are deprecated in React 18.
     'react/require-default-props': 'off',
+    // `@mui/icons-material` resolves all icons to the same `.d.ts` file,
+    // which makes the `eslint-plugin-import` version of this rule emit a warning.
+    // See https://github.com/import-js/eslint-plugin-import/issues/1479#issuecomment-2408001379
+    'import/no-duplicates': 'off',
+    'no-duplicate-imports': 'warn',
   },
   overrides: [
     {
@@ -156,7 +165,10 @@ module.exports = {
         'subprojects/*/config/*.ts',
         'subprojects/*/config/*.cjs',
         'prettier.config.cjs',
+        'subprojects/*/esbuild.mjs',
         'subprojects/*/vite.config.ts',
+        'subprojects/*/vitest.config.ts',
+        'subprojects/*/vitest.workspace.ts',
       ],
       env: {
         browser: false,

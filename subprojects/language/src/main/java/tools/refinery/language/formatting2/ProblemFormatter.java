@@ -13,6 +13,7 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.xtext.formatting2.AbstractJavaFormatter;
 import org.eclipse.xtext.formatting2.IFormattableDocument;
 import org.eclipse.xtext.formatting2.IHiddenRegionFormatter;
+import org.eclipse.xtext.formatting2.regionaccess.ISemanticRegion;
 import org.eclipse.xtext.formatting2.regionaccess.ISemanticRegionsFinder;
 import org.eclipse.xtext.formatting2.regionaccess.ISequentialRegion;
 import org.eclipse.xtext.xbase.lib.Procedures.Procedure1;
@@ -20,6 +21,20 @@ import tools.refinery.language.model.problem.*;
 
 @SuppressWarnings("UnstableApiUsage")
 public class ProblemFormatter extends AbstractJavaFormatter {
+	public static final int MAX_LENGTH = 80;
+	public static final int TAB_SIZE = 4;
+
+	@Override
+	public void format(Object child, IFormattableDocument document) {
+		if (child instanceof AnnotatedElement annotatedElement) {
+			var annotationContainer = annotatedElement.getAnnotations();
+			if (annotationContainer != null) {
+				document.format(annotationContainer);
+			}
+		}
+		super.format(child, document);
+	}
+
 	protected void format(Problem problem, IFormattableDocument doc) {
 		doc.prepend(problem, this::noSpace);
 		var region = regionFor(problem);
@@ -72,8 +87,31 @@ public class ProblemFormatter extends AbstractJavaFormatter {
 		doc.interior(region.keyword("{"), region.keyword("}"), IHiddenRegionFormatter::indent);
 		doc.prepend(region.keyword("."), this::noSpace);
 		for (var featureDeclaration : classDeclaration.getFeatureDeclarations()) {
+			doc.append(featureDeclaration, it -> it.setNewLines(1, 1, 2));
 			doc.format(featureDeclaration);
 		}
+	}
+
+	protected void format(ReferenceDeclaration referenceDeclaration, IFormattableDocument doc) {
+		var region = regionFor(referenceDeclaration);
+		doc.append(region.feature(ProblemPackage.Literals.REFERENCE_DECLARATION__KIND), this::oneSpace);
+		doc.prepend(region.feature(ProblemPackage.Literals.NAMED_ELEMENT__NAME), this::oneSpace);
+		formatList(region, ",", doc);
+		doc.surround(region.keyword("opposite"), this::oneSpace);
+		doc.surround(region.keyword("subsets"), this::oneSpace);
+		var multiplicity = referenceDeclaration.getMultiplicity();
+		if (multiplicity != null) {
+			doc.prepend(multiplicity, this::noSpace);
+			doc.append(multiplicity, this::oneSpace);
+			doc.format(multiplicity);
+		}
+	}
+
+	protected void format(Multiplicity multiplicity, IFormattableDocument doc) {
+		var region = regionFor(multiplicity);
+		doc.append(region.keyword("["), this::noSpace);
+		doc.prepend(region.keyword("]"), this::noSpace);
+		doc.surround(region.keyword(".."), this::noSpace);
 	}
 
 	protected void format(EnumDeclaration enumDeclaration, IFormattableDocument doc) {
@@ -85,6 +123,13 @@ public class ProblemFormatter extends AbstractJavaFormatter {
 		doc.prepend(region.keyword("}"), it -> it.setNewLines(1, 1, 2));
 		doc.interior(region.keyword("{"), region.keyword("}"), IHiddenRegionFormatter::indent);
 		doc.prepend(region.keyword("."), this::noSpace);
+		for (var comma : region.keywords(",")) {
+			doc.prepend(comma, this::noSpace);
+			doc.append(comma, it -> it.setNewLines(1, 1, 2));
+		}
+		for (var literal : enumDeclaration.getLiterals()) {
+			doc.format(literal);
+		}
 	}
 
 	protected void format(PredicateDefinition predicateDefinition, IFormattableDocument doc) {
@@ -135,10 +180,86 @@ public class ProblemFormatter extends AbstractJavaFormatter {
 	protected void format(NodeDeclaration nodeDeclaration, IFormattableDocument doc) {
 		surroundNewLines(doc, nodeDeclaration, this::singleNewLine);
 		var region = regionFor(nodeDeclaration);
-		doc.append(region.keyword("declare"), this::oneSpace);
-		doc.append(region.feature(ProblemPackage.Literals.NODE_DECLARATION__KIND), this::oneSpace);
-		formatList(region, ",", doc);
+		var declare = region.keyword("declare");
+		int indentation = declare == null ? 0 : declare.getLength() + 1;
+		doc.append(declare, this::oneSpace);
+		var start = region.feature(ProblemPackage.Literals.NODE_DECLARATION__KIND);
+		doc.append(start, this::oneSpace);
+		if (start == null) {
+			start = declare;
+		} else {
+			indentation += start.getLength() + 1;
+		}
+		var end = region.keyword(".");
+		if (!nodeDeclaration.getNodes().isEmpty()) {
+			// This is a syntax error, but we should avoid clash between this and the space before even if we're
+			// asked to format an invalid document.
+			doc.prepend(end, this::noSpace);
+		}
+		doc.interior(start, end, IHiddenRegionFormatter::indent);
+		var commaIterator = region.keywords(",").iterator();
+		var nodeIterator = nodeDeclaration.getNodes().iterator();
+		ISemanticRegion lastComma = null;
+		while (nodeIterator.hasNext()) {
+			var node = nodeIterator.next();
+			var nodeRegion = regionForEObject(node);
+			// Add 1 for the space after the previous comma and add 1 for the comma or dot after.
+			int totalLength = 1 + nodeRegion.getLength() + 1;
+			int newOffset = indentation + totalLength;
+			boolean breakLineBefore = newOffset >= MAX_LENGTH;
+			if (breakLineBefore) {
+				doc.append(lastComma, this::newLine);
+				indentation = TAB_SIZE + totalLength;
+			} else {
+				doc.append(lastComma, this::oneSpace);
+				indentation = newOffset;
+			}
+			lastComma = commaIterator.hasNext() ? commaIterator.next() : null;
+			doc.prepend(lastComma, this::noSpace);
+			doc.format(node);
+		}
+	}
+
+	protected void format(TopLevelAnnotation topLevelAnnotation, IFormattableDocument doc) {
+		surroundNewLines(doc, topLevelAnnotation, this::twoNewLines);
+		var region = regionFor(topLevelAnnotation);
+		doc.append(region.keyword("#"), this::noSpace);
 		doc.prepend(region.keyword("."), this::noSpace);
+		var annotation = topLevelAnnotation.getAnnotation();
+		if (annotation != null) {
+			doc.format(annotation);
+		}
+	}
+
+	protected void format(Annotation annotation, IFormattableDocument doc) {
+		var region = regionFor(annotation);
+		doc.prepend(region.keyword("("), this::noSpace);
+		formatParenthesizedList(region, doc);
+		for (var argument : annotation.getArguments()) {
+			doc.format(argument);
+		}
+	}
+
+	protected void format(AnnotationArgument annotationArgument, IFormattableDocument doc) {
+		var region = regionFor(annotationArgument);
+		doc.append(region.feature(ProblemPackage.Literals.ANNOTATION_ARGUMENT__PARAMETER), this::oneSpace);
+		doc.append(region.keyword("="), this::oneSpace);
+		doc.format(annotationArgument.getValue());
+	}
+
+	protected void format(AnnotationContainer annotationContainer, IFormattableDocument doc) {
+		var region = regionFor(annotationContainer);
+		for (var atSign : region.keywords("@")) {
+			doc.append(atSign, this::noSpace);
+		}
+		var annotatedElement = annotationContainer.eContainer();
+		boolean singleLine = annotatedElement instanceof Parameter ||
+				(annotatedElement instanceof Node && annotatedElement.eContainer() instanceof NodeDeclaration);
+		Procedure1<IHiddenRegionFormatter> initializer = singleLine ? this::oneSpace : this::newLine;
+		for (var annotation : annotationContainer.getAnnotations()) {
+			doc.format(annotation);
+			doc.append(annotation, initializer);
+		}
 	}
 
 	protected void formatParenthesizedList(ISemanticRegionsFinder region, IFormattableDocument doc) {
@@ -166,12 +287,12 @@ public class ProblemFormatter extends AbstractJavaFormatter {
 	protected void surroundNewLines(IFormattableDocument doc, EObject eObject,
 									Procedure1<? super IHiddenRegionFormatter> init) {
 		var region = doc.getRequest().getTextRegionAccess().regionForEObject(eObject);
-		preprendNewLines(doc, region, init);
+		prependNewLines(doc, region, init);
 		appendNewLines(doc, region, init);
 	}
 
-	protected void preprendNewLines(IFormattableDocument doc, ISequentialRegion region,
-									Procedure1<? super IHiddenRegionFormatter> init) {
+	protected void prependNewLines(IFormattableDocument doc, ISequentialRegion region,
+								   Procedure1<? super IHiddenRegionFormatter> init) {
 		if (region == null) {
 			return;
 		}

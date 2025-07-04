@@ -48,7 +48,7 @@ function NoRowsOverlay({
   graph: { selectedSymbol },
 }: {
   graph: GraphStore;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <Stack
       height="100%"
@@ -72,7 +72,7 @@ function NoResultsOverlay({
   graph: { selectedSymbol },
 }: {
   graph: GraphStore;
-}): JSX.Element {
+}): React.ReactElement {
   return (
     <Stack height="100%" alignItems="center" justifyContent="center">
       {selectedSymbol === undefined ? (
@@ -93,7 +93,7 @@ function TableArea({
 }: {
   graph: GraphStore;
   touchesTop: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   const { concretize, selectedSymbol, showComputed, semantics, dimView } =
     graph;
   const { nodes, partialInterpretation } = semantics;
@@ -179,6 +179,7 @@ function TableArea({
             graph,
           },
         }}
+        showToolbar
         initialState={{ density: 'compact' }}
         rowSelection={false}
         columns={columns}
@@ -209,6 +210,7 @@ function TableArea({
             padding: theme.spacing(1),
             // Correct for the non-integer height of the text box to match up with the editor area toolbar.
             marginBottom: '-0.5px',
+            borderBottom: 'none',
           },
           '.MuiDataGrid-columnHeaders': {
             '.MuiDataGrid-columnHeader, .MuiDataGrid-filler, .MuiDataGrid-scrollbarFiller':

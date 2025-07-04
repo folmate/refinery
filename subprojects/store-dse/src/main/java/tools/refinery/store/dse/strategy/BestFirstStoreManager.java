@@ -39,7 +39,7 @@ public class BestFirstStoreManager {
 
 		objectiveStore = new ObjectivePriorityQueueImpl(storeAdapter.getObjectives());
 		Consumer<VersionWithObjectiveValue> whenAllActivationsVisited = x -> objectiveStore.remove(x);
-		activationStore = new ActivationStoreImpl(storeAdapter.getTransformations().size(), whenAllActivationsVisited);
+		activationStore = new ActivationStoreImpl(storeAdapter.getTransformations(), whenAllActivationsVisited);
 		solutionStore = new SolutionStoreImpl(maxNumberOfSolutions);
 		equivalenceClassStore = new FastEquivalenceClassStore(modelStore.getAdapter(StateCoderStoreAdapter.class)) {
 			@Override
@@ -80,8 +80,9 @@ public class BestFirstStoreManager {
 	}
 
 	public void startExploration(Version initial, long randomSeed) {
-		BestFirstExplorer bestFirstExplorer = new BestFirstExplorer(this, modelStore.createModelForState(initial),
-				randomSeed);
-		bestFirstExplorer.explore();
+		try (var model = modelStore.createModelForState(initial)) {
+			BestFirstExplorer bestFirstExplorer = new BestFirstExplorer(this, model, randomSeed);
+			bestFirstExplorer.explore();
+		}
 	}
 }

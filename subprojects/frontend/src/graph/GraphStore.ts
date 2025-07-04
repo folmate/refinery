@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: EPL-2.0
  */
 
+import type { Visibility } from '@tools.refinery/client';
 import { makeAutoObservable, observable } from 'mobx';
 
 import type EditorStore from '../editor/EditorStore';
@@ -13,7 +14,10 @@ import type {
   SemanticsModelResult,
 } from '../xtext/xtextServiceResults';
 
-export type Visibility = 'all' | 'must' | 'none';
+export type { Visibility } from '@tools.refinery/client';
+
+// Supertype of `ModelSemanticsResult` and `GeneratedModelSemanticsResult`.
+export type ModelResultWithSource = SemanticsModelResult & { source?: string };
 
 function hideBuiltIn(
   metadata: RelationMetadata,
@@ -27,6 +31,9 @@ export function getDefaultVisibility(
 ): Visibility {
   if (metadata === undefined || metadata.arity <= 0 || metadata.arity > 2) {
     return 'none';
+  }
+  if (metadata.visibility) {
+    return metadata.visibility;
   }
   const { detail } = metadata;
   switch (detail.type) {
@@ -74,7 +81,7 @@ function getComputedName(relationName: string) {
 const TYPE_HASH_HEX_PREFFIX = '_';
 
 export default class GraphStore {
-  semantics: SemanticsModelResult = {
+  semantics: ModelResultWithSource = {
     nodes: [],
     relations: [],
     partialInterpretation: {},
@@ -93,7 +100,7 @@ export default class GraphStore {
   private typeHashesMap = new Map<string, number>();
 
   constructor(
-    private readonly editorStore: EditorStore,
+    public readonly editorStore: EditorStore,
     private readonly generatedModelName?: string,
     visibility?: Map<string, Visibility>,
   ) {
@@ -110,6 +117,25 @@ export default class GraphStore {
 
   get generated(): boolean {
     return this.generatedModelName !== undefined;
+  }
+
+  get hasSource(): boolean {
+    return (
+      !!this.semantics.source ||
+      // We currently don't serialize the source code for concretized models on the server.
+      (!this.generated && !this.editorStore.concretize)
+    );
+  }
+
+  get source(): string {
+    const { source } = this.semantics;
+    if (source) {
+      return source;
+    }
+    if (!this.generated) {
+      return this.editorStore.state.sliceDoc();
+    }
+    return '';
   }
 
   getVisibility(relation: string): Visibility {
@@ -180,6 +206,10 @@ export default class GraphStore {
     this.visibility.clear();
   }
 
+  get visibilityObject(): Record<string, Visibility> {
+    return Object.fromEntries(this.visibility);
+  }
+
   getName({ name, simpleName }: { name: string; simpleName: string }): string {
     return this.abbreviate ? simpleName : name;
   }
@@ -212,8 +242,13 @@ export default class GraphStore {
     this.editorStore.toggleShowComputed();
   }
 
-  setSemantics(semantics: SemanticsModelResult) {
-    this.semantics = semantics;
+  setSemantics(semantics: SemanticsModelResult, source?: string): void {
+    this.semantics = source
+      ? {
+          ...semantics,
+          source,
+        }
+      : semantics;
     this.relationMetadata.clear();
     this.semantics.relations.forEach((metadata) => {
       this.relationMetadata.set(metadata.name, metadata);

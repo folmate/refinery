@@ -5,24 +5,21 @@
  */
 package tools.refinery.store.reasoning.internal;
 
+import org.jetbrains.annotations.Nullable;
 import tools.refinery.logic.Constraint;
 import tools.refinery.logic.dnf.Dnf;
 import tools.refinery.logic.dnf.DnfBuilder;
 import tools.refinery.logic.dnf.DnfClause;
-import tools.refinery.logic.literal.AbstractCallLiteral;
-import tools.refinery.logic.literal.AbstractCountLiteral;
-import tools.refinery.logic.literal.CallPolarity;
-import tools.refinery.logic.literal.Literal;
-import tools.refinery.logic.term.Aggregator;
-import tools.refinery.logic.term.ConstantTerm;
-import tools.refinery.logic.term.Term;
-import tools.refinery.logic.term.Variable;
+import tools.refinery.logic.literal.*;
+import tools.refinery.logic.term.*;
 import tools.refinery.logic.term.int_.IntTerms;
 import tools.refinery.logic.term.uppercardinality.UpperCardinalities;
 import tools.refinery.logic.term.uppercardinality.UpperCardinalityTerms;
+import tools.refinery.logic.util.CircularReferenceException;
 import tools.refinery.store.reasoning.ReasoningAdapter;
 import tools.refinery.store.reasoning.literal.*;
 import tools.refinery.store.reasoning.representation.PartialRelation;
+import tools.refinery.store.reasoning.translator.TranslationException;
 import tools.refinery.store.reasoning.translator.multiobject.MultiObjectTranslator;
 
 import java.util.*;
@@ -32,6 +29,7 @@ class PartialClauseRewriter {
 	private final PartialQueryRewriter rewriter;
 	private final List<Literal> completedLiterals = new ArrayList<>();
 	private final Deque<Literal> workList = new ArrayDeque<>();
+	private final Map<Literal, PartialRelation> trace = new LinkedHashMap<>();
 	private final Set<Variable> positiveVariables = new LinkedHashSet<>();
 	private final Set<Variable> unmodifiablePositiveVariables = Collections.unmodifiableSet(positiveVariables);
 
@@ -49,10 +47,14 @@ class PartialClauseRewriter {
 	}
 
 	private void rewrite(Literal literal) {
-		if (!(literal instanceof AbstractCallLiteral callLiteral)) {
-			markAsDone(literal);
-			return;
+		switch (literal) {
+		case AbstractCallLiteral callLiteral -> rewriteCallLiteral(callLiteral);
+		case TermLiteral<?> termLiteral -> rewriteTermLiteral(termLiteral);
+		default -> markAsDone(literal);
 		}
+	}
+
+	private void rewriteCallLiteral(AbstractCallLiteral callLiteral) {
 		switch (callLiteral) {
 		case CountLowerBoundLiteral countLowerBoundLiteral -> rewriteCountLowerBound(countLowerBoundLiteral);
 		case CountUpperBoundLiteral countUpperBoundLiteral -> rewriteCountUpperBound(countUpperBoundLiteral);
@@ -74,10 +76,50 @@ class PartialClauseRewriter {
 				default -> throw new IllegalArgumentException("Cannot interpret modal constraint: " + modalConstraint);
 				}
 			}
-			default -> markAsDone(literal);
+			default -> markAsDone(callLiteral);
 			}
 		}
 		}
+	}
+
+	private <T> void rewriteTermLiteral(TermLiteral<T> termLiteral) {
+		var term = termLiteral.getTerm();
+		var rewrittenTerm = rewriteTerm(term);
+		if (term == rewrittenTerm) {
+			markAsDone(termLiteral);
+			return;
+		}
+		var rewrittenLiteral = termLiteral.withTerm(rewrittenTerm);
+		workList.addFirst(rewrittenLiteral);
+	}
+
+	private <T> Term<T> rewriteTerm(Term<T> term) {
+		var termWithProcessedSubTerms = term.rewriteSubTerms(this::rewriteTerm);
+		if (!(termWithProcessedSubTerms instanceof AbstractCallTerm<T> callTerm)) {
+			return termWithProcessedSubTerms;
+		}
+		var target = callTerm.getTarget();
+		return switch (target) {
+			case Dnf dnf -> callTerm.withTarget(rewriter.rewrite(dnf));
+			case ModalConstraint modalConstraint -> {
+				var modality = modalConstraint.modality().toModality();
+				var concreteness = modalConstraint.concreteness().toConcreteness();
+				var constraint = modalConstraint.constraint();
+				yield switch (constraint) {
+					case Dnf dnf -> {
+						var newTarget = rewriter.getLifter().lift(modality, concreteness, dnf);
+						yield callTerm.withTarget(rewriter.rewrite(newTarget));
+					}
+					case PartialRelation partialRelation -> {
+						var relationRewriter = rewriter.getRelationRewriter(partialRelation);
+						yield relationRewriter.rewriteTerm(callTerm, modality, concreteness);
+					}
+					default -> throw new IllegalArgumentException("Cannot interpret modal constraint: " +
+							modalConstraint);
+				};
+			}
+			default -> term;
+		};
 	}
 
 	private void rewriteCountLowerBound(CountLowerBoundLiteral literal) {
@@ -124,8 +166,20 @@ class PartialClauseRewriter {
 		var aggregationVariable = Variable.of(type);
 		var helperArguments = countResult.helperArguments();
 		helperArguments.add(aggregationVariable);
-		workList.addFirst(literal.getResultVariable().assign(helperQuery.aggregateBy(aggregationVariable, sum,
-				helperArguments)));
+		addWithTrace(literal.getResultVariable().assign(helperQuery.aggregateBy(aggregationVariable, sum,
+				helperArguments)), literal);
+	}
+
+	private void addWithTrace(Literal newLiteral, @Nullable PartialRelation traceRelation) {
+		if (traceRelation != null) {
+			trace.put(newLiteral, traceRelation);
+		}
+		workList.addFirst(newLiteral);
+	}
+
+	private void addWithTrace(Literal newLiteral, Literal previousLiteral) {
+		var previousTrace = trace.get(previousLiteral);
+		addWithTrace(newLiteral, previousTrace);
 	}
 
 	private void rewriteCountCandidateLowerBound(CountCandidateLowerBoundLiteral literal) {
@@ -150,7 +204,7 @@ class PartialClauseRewriter {
 		builder.clause(literals);
 
 		var helperQuery = builder.build();
-		workList.addFirst(literal.getResultVariable().assign(helperQuery.count(countResult.helperArguments())));
+		addWithTrace(literal.getResultVariable().assign(helperQuery.count(countResult.helperArguments())), literal);
 	}
 
 	private CountResult computeCountVariables(AbstractCountLiteral<?> literal, Concreteness concreteness,
@@ -193,7 +247,13 @@ class PartialClauseRewriter {
 	}
 
 	private void rewriteRecursively(AbstractCallLiteral callLiteral, Dnf dnf) {
-		var rewrittenDnf = rewriter.rewrite(dnf);
+		Dnf rewrittenDnf;
+		try {
+			rewrittenDnf = rewriter.rewrite(dnf);
+		} catch (CircularReferenceException e) {
+			var traceRelation = trace.get(callLiteral);
+			throw new TranslationException(traceRelation, e);
+		}
 		var rewrittenLiteral = callLiteral.withTarget(rewrittenDnf);
 		markAsDone(rewrittenLiteral);
 	}
@@ -202,10 +262,10 @@ class PartialClauseRewriter {
 						 PartialRelation partialRelation) {
 		var relationRewriter = rewriter.getRelationRewriter(partialRelation);
 		var literals = relationRewriter.rewriteLiteral(unmodifiablePositiveVariables, callLiteral, modality,
-                concreteness);
+				concreteness);
 		int length = literals.size();
 		for (int i = length - 1; i >= 0; i--) {
-			workList.addFirst(literals.get(i));
+			addWithTrace(literals.get(i), partialRelation);
 		}
 	}
 

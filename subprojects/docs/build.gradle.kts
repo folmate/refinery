@@ -1,11 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2024 The Refinery Authors <https://refinery.tools/>
+ * SPDX-FileCopyrightText: 2024-2025 The Refinery Authors <https://refinery.tools/>
  *
  * SPDX-License-Identifier: EPL-2.0
  */
 
 import org.siouan.frontendgradleplugin.infrastructure.gradle.RunYarnTaskType
-import tools.refinery.gradle.JavaLibraryPlugin
+import tools.refinery.gradle.internal.JavaBasicLibraryPlugin
 import tools.refinery.gradle.utils.SonarPropertiesUtils
 
 plugins {
@@ -38,11 +38,12 @@ repositories {
 dependencies {
 	gradle.projectsEvaluated {
 		for (subproject in rootProject.subprojects) {
-			if (subproject.plugins.hasPlugin(JavaLibraryPlugin::class)) {
+			if (subproject.plugins.hasPlugin(JavaBasicLibraryPlugin::class)) {
 				javadocs(project(subproject.path, "javadocElements"))
-				val releasedProjectVersion = if (subproject.group.toString() == interpreterGroup)
-					releasedInterpreterVersion else releasedVersion
-				releasedJavadocs("${subproject.group}:${subproject.name}:$releasedProjectVersion:javadoc@jar")
+				var isInterpreter = subproject.name.startsWith("refinery-interpreter")
+				val releasedGroup = if (isInterpreter) interpreterGroup else subproject.group
+				val releasedProjectVersion = if (isInterpreter) releasedInterpreterVersion else releasedVersion
+				releasedJavadocs("${releasedGroup}:${subproject.name}:$releasedProjectVersion:javadoc@jar")
 			}
 		}
 	}

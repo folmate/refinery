@@ -41,13 +41,13 @@ function DotGraphVisualizer({
   animateThreshold?: number;
   setSvgContainer?: (container: HTMLElement | undefined) => void;
   simplify?: boolean;
-}): JSX.Element {
+}): React.ReactElement {
   const transitionTimeOrDefault = transitionTime ?? 250;
   const animateThresholdOrDefault = animateThreshold ?? 100;
-  const disposerRef = useRef<IReactionDisposer | undefined>();
+  const disposerRef = useRef<IReactionDisposer | undefined>(undefined);
   const graphvizRef = useRef<
     Graphviz<BaseType, unknown, null, undefined> | undefined
-  >();
+  >(undefined);
   const [animate, setAnimate] = useState(true);
   const [concretize, setConcretize] = useState(false);
   const prefersReducedMotion = useMediaQuery(
@@ -97,7 +97,9 @@ function DotGraphVisualizer({
           renderer.tweenPaths(false);
         }
         let newViewBox = { width: 0, height: 0 };
-        renderer.onerror(LOG.error.bind(LOG));
+        renderer.onerror((err: unknown) =>
+          LOG.error({ err }, 'Graphviz error'),
+        );
         renderer.on(
           'postProcessSVG',
           // @ts-expect-error Custom `d3-graphviz` hook not covered by typings.
